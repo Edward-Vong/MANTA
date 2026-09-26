@@ -1,0 +1,11 @@
+Meeting 5-------------------------------------------------------------------------
+What we did
+- Completed Workbook assignments
+     - Project justification, found multiple articles, implementation plan, dependencies and deliverables, Project Requirements
+
+What we plan on doing
+- Completing architecture diagrams/section reviewing and writing literature review
+- start working on Workbook 2
+
+Blockers
+- assignment from other courses will delay some work

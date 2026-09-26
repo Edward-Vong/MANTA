@@ -1,0 +1,13 @@
+Meeting 4-------------------------------------------------------------------------
+What we did
+- Progress check-in: 
+	- work has been started on literature search
+	- reviewing articles for architecture development
+- assignment check-in
+
+What we plan on doing
+- workbook 1 completion:
+	- Project justification, found multiple articles, implementation plan, dependencies and deliverables, Project Requirements
+
+Blockers
+- 294 research paper assignments
