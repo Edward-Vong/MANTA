@@ -1,0 +1,13 @@
+- Consider session hijacking and other things
+	- what would a typical attacker want? 
+	- legitimate flow vs attacker flow
+	- different other attack scenarios beyond DDoS
+	- IP spoofing (under the same umbrella)
+
+- we expect attackers come from a front door
+	- we can consider something else
+	- research whether enterprise networks has transitioned to SDN
+
+- are identities managed by working in application layer or is part of the SDN project
+	- explain identities more clearly
+	- 
