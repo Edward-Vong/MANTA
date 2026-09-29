@@ -11,3 +11,10 @@
 - are identities managed by working in application layer or is part of the SDN project
 	- explain identities more clearly
 	- 
+
+How is legitimate pathing different from attacker pathing?
+What happens in the case of session hijacking?
+Analysis of state-of-the-art SDN approach, or alternatives to it? Does MANTA require SDN? How can we apply MANTA to hybrid systems or legacy systems?
+Application architecture: Is MTD identity stuff done on the application layer?
+Is this actually MTD if it only obfuscates from the outside and doesn’t actually change the architecture?
+How to apply MANTA more generally through the ISO model? What should be covered in the network vs application layer?
