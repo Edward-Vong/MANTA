@@ -1,3 +1,32 @@
+Meeting Type: Advisor
+Date: 2026-09-29
+Start–End Time: 1pm - 1:30pm
+Location/Mode: Zoom
+Attendees:
+- Advisor: Sujata Ramamoorthy
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Completed a first iteration for our Workbook
+
+2) Accomplished During This Meeting
+- Discussed gaps within our project
+- Answered overarching questions that will come up with our project
+
+3) Issues / Blockers
+- Is our project really performing MTD?
+
+4) Action Items
+- Action: Solve the Project Logic Problem | Owner: All | Due: Oct 1st
+- Action: Restructure and Complete Workbook 1 | Owner: All | Due: Oct 1st
+
+5) Plans / Goals for Next Meeting
+- Complete Workbook
+- have work to discuss about workbook 2 and other iterations
+
+NOTES--------------------------------------------------------------------------------
 - Consider session hijacking and other things
 	- what would a typical attacker want? 
 	- legitimate flow vs attacker flow
@@ -10,7 +39,6 @@
 
 - are identities managed by working in application layer or is part of the SDN project
 	- explain identities more clearly
-	- 
 
 How is legitimate pathing different from attacker pathing?
 What happens in the case of session hijacking?
