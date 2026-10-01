@@ -24,7 +24,7 @@ Attendees:
 4) Action Items
 - Action: "Complete" Functional Requirements | Owner: Edward | Due: Sept 25th
 - Action: Plan and Write a comprehensive list for Optional, Desired, and Non-Functional | Owner: All | Due: Sept 25th
-- Action: Ltierature Search write up | Action: Owen, All | Due: Sept 25th
+- Action: Literature Search write up | Owner: Owen, All | Due: Sept 25th
 - Action: Plan and Progress Start | Owner: Owen | Due: Sept 25th
 - Action: Schedule | Owner: Vicki | Due: Sept 25th
 

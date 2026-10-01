@@ -22,4 +22,4 @@ Attendees:
 
 5) Plans / Goals for Next Meeting
 - Work is submitted
-- Break for a Moment for studying
+- Break for a <oment for studying
