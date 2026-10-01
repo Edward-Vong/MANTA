@@ -1,13 +1,33 @@
-Meeting 4-------------------------------------------------------------------------
-What we did
-- Progress check-in: 
-	- work has been started on literature search
-	- reviewing articles for architecture development
-- assignment check-in
+Meeting Type: Team-Only
+Date: 2026-09-18
+Start–End Time: 12pm - 1pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
 
-What we plan on doing
-- workbook 1 completion:
-	- Project justification, found multiple articles, implementation plan, dependencies and deliverables, Project Requirements
+1) Accomplished Since Last Meeting
+- Completed Justification
+- Completed Architecture iteration 1 
+- Found a comprehensive set of resources for the project
+- Completed deliverables
+- Started Functional Requirements
 
-Blockers
-- 294 research paper assignments
+2) Accomplished During This Meeting
+- Reviewed found research
+- progress check
+
+3) Issues / Blockers
+- Other classes and priorities have slowed progress during the week
+
+4) Action Items
+- Action: "Complete" Functional Requirements | Owner: Edward | Due: Sept 25th
+- Action: Plan and Write a comprehensive list for Optional, Desired, and Non-Functional | Owner: All | Due: Sept 25th
+- Action: Ltierature Search write up | Action: Owen, All | Due: Sept 25th
+- Action: Plan and Progress Start | Owner: Owen | Due: Sept 25th
+- Action: Schedule | Owner: Vicki | Due: Sept 25th
+
+5) Plans / Goals for Next Meeting
+- Prepare for meeting with professor
+- Mostly completed Workbook 1 for professor review and feedback

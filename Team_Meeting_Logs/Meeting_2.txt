@@ -1,0 +1,29 @@
+Meeting Type: Team-Only
+Date: 2026-09-04
+Start–End Time: 12pm - 1pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Abstract completed and submitted
+- slides completed and presented
+
+2) Accomplished During This Meeting
+- overview of workbook 1
+- splitting up tasks 
+
+3) Issues / Blockers
+- none
+
+4) Action Items
+- Action: Search for Literature and have some notes | Owner: All | Due: September 11th
+- Action: Progress for Justification | Owner: Owen | Due: Sept 11th
+- Action: First iteration on Architecture | Owner: Edward | Due: Sept 11th
+- Action: dependencies and deliverables | Owner: Vicki | Due: Sept 11th
+
+5) Plans / Goals for Next Meeting
+- Discuss progress and found literature
+- Have a proper understanding of the Project

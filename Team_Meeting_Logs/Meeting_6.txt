@@ -1,0 +1,25 @@
+Meeting Type: Team-Only
+Date: 2026-09-29th
+Start–End Time: 12pm - 1pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Workbook tentatively completed and reviewed by advisor
+
+2) Accomplished During This Meeting
+- Discussing what was covered in advisor meeting
+
+3) Issues / Blockers
+- Architecture definition needs to be redone
+- midterms for classes will stagnate progress this week
+
+4) Action Items
+- Action: Restructure Architecture, Schedule, and Requirements Accordingly | Owner: Edward | Due: Oct 1st
+
+5) Plans / Goals for Next Meeting
+- Work is submitted
+- Break for a Moment for studying

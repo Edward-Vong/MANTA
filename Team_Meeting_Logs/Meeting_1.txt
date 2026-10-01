@@ -1,0 +1,26 @@
+Meeting Type: Team-Only
+Date: 2026-08-26
+Start–End Time: 12pm - 1pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- First meeting. Nothing Accomplished!
+
+2) Accomplished During This Meeting
+- going over rough idea for Master project and what to research
+- divvying work for Abstract
+
+3) Issues / Blockers
+- N/A
+
+4) Action Items
+- Action: Research | Owner: All | Due: September 4th
+- Action: Writing Abstract | Owner: All | Due: Sept 8th
+- Action: Slides | Owner: All | Due: Sept 8th
+
+5) Plans / Goals for Next Meeting
+- Be prepared to discuss progress and research completed

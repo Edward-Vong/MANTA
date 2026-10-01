@@ -1,12 +1,32 @@
-Meeting 3-------------------------------------------------------------------------
-What we did
-- Meeting with project advisor
-- planning for workbook
+Meeting Type: Team-Only
+Date: 2026-09-11
+Start–End Time: 12pm - 1pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
 
+1) Accomplished Since Last Meeting
+- literature found
+- Justification mostly completed
+- dependencies completed
 
-What we plan on doing
-- workbook sections: literature search primarily
-	- 
+2) Accomplished During This Meeting
+- Reviewed found research
+- progress check
 
-Blockers
-- N/A
+3) Issues / Blockers
+- Architecture delayed due to information burden
+	- unable to start requirements until completed
+
+4) Action Items
+- Action: Research for Architecture | Owner: Edward | Due: September 18th
+- Action: Complete Project Justification | Owner: Owen | Due: Sept 18th
+- Action: First iteration on Architecture | Owner: Edward | Due: Sept 18th
+- Action: Complete deliverables | Owner: Vicki | Due: Sept 18th
+- Action: start determining Project Requirements | Owner: Edward | Due: Sept 18th
+
+5) Plans / Goals for Next Meeting
+- Architecture Completed to progress with other portions of the project
+- 
