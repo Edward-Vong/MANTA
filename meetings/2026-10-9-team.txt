@@ -1,0 +1,32 @@
+Meeting Type: Team-Only
+Date: 2026-10-9th
+Start–End Time: 1pm - 2pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Note taking
+- Not much work done due to midterms
+
+2) Accomplished During This Meeting
+- getting back on track
+- discussing future schedule
+- discussing implementation plans
+
+3) Issues / Blockers
+- work can't be started until mininet is setup
+
+4) Action Items
+- Action: Setup mininet VM | Owner: Edward | Due: Oct 13th
+- Action: setup switch and basic forwarding | Owner: Edward | Due: Oct 10th
+- Action: Basic Git structure | Owner: Edward | Due: Oct 10th
+- Action: Adjust Schedule | Owner All | Due: Oct 13th
+
+
+5) Plans / Goals for Next Meeting
+- mininet setup
+- basic git setup
+- meeting with advisor
