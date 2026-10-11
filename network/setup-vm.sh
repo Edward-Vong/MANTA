@@ -17,6 +17,7 @@ ryu_source="$HOME/src/ryu"
 records="$HOME/manta-environment"
 ryu_pid=""
 test_started=false
+shared_folder_setup=false
 mkdir -p "$records"
 
 cleanup() {
@@ -43,6 +44,29 @@ sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git curl build-essential python3-pip python3-venv python3-dev \
     mininet openvswitch-switch iperf3 nmap tcpdump wireshark
 sudo systemctl enable --now openvswitch-switch
+
+if [[ "$(systemd-detect-virt || true)" == oracle ]]; then
+    echo "Setting up VirtualBox shared folders..."
+    # Use Ubuntu's Guest Additions packages unless additions are already installed.
+    if ! command -v VBoxControl >/dev/null 2>&1; then
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            virtualbox-guest-utils virtualbox-guest-x11
+    fi
+    sudo groupadd -f vboxsf
+    sudo usermod -aG vboxsf "$(id -un)"
+    shared_folder_setup=true
+    cat <<'INFO'
+In VirtualBox Settings > Shared Folders, add:
+  Folder Path: E:\CodingProjects\MANTA
+  Folder Name: MANTA
+  Auto-mount: enabled; Make Permanent: enabled (if shown)
+  Read-only: disabled; Mount point: leave empty
+After reboot, access the project at /media/sf_MANTA.
+Host files in this folder are not restored by VM snapshots; keep code in Git.
+INFO
+else
+    echo "Not running in VirtualBox; skipping Guest Additions setup."
+fi
 
 echo "Installing Ryu in $venv..."
 python3 -m venv "$venv"
@@ -116,7 +140,8 @@ cleanup
 ryu_pid=""
 test_started=false
 echo "Setup and basic forwarding check passed. Records: $records"
-if [[ -f /var/run/reboot-required ]]; then
-    echo "Ubuntu requires a reboot. Reboot and rerun this script to verify afterward."
+if [[ -f /var/run/reboot-required || "$shared_folder_setup" == true ]]; then
+    echo "Reboot before snapshotting to activate updates and shared-folder access."
+    echo "After reboot, check: ls /media/sf_MANTA (if configured in VirtualBox)."
 fi
 echo "When ready: shut down the VM and take snapshot 02-mininet-ryu-working."
