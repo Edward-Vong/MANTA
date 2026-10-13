@@ -1,0 +1,35 @@
+Meeting Type: Team-Only
+Date: 2026-10-15th
+Start–End Time: 1:30pm - 2pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- new Architecture
+- VMs set up
+- git structure completed
+
+2) Accomplished During This Meeting
+- Broke down new architecture
+- Planning new development schedule
+
+3) Issues / Blockers
+- New Architecture, New switch/forwarding configuration
+- new schedule because new architecture
+    - need schedule so team can start doing work
+- we don't have a UI
+
+4) Action Items
+- Action: Setup switch and basic forwarding | Owner: Edward | Due: Oct 16th
+- Action: Adjust Schedule | Owner All | Due: Oct 16th
+- Action: Design Diagram | Owner: Edward & Owen | Due: Oct 27th
+    - Action: Sequence Diagram | Owner: Owen | Due: Oct 27th
+
+
+5) Plans / Goals for Next Meeting
+- mininet setup
+- basic git setup
+- meeting with advisor

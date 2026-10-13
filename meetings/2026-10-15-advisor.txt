@@ -1,0 +1,28 @@
+Meeting Type: Advisor
+Date: 2026-10-15
+Start–End Time: 1-1:30pm
+Location/Mode: Zoom
+Attendees:
+- Advisor: Sujata Ramamoorthy
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- set up VMs for our services
+- came up with new restructured architecture
+
+2) Accomplished During This Meeting
+- informed professor about new plans and goals
+- discussed possible concerns and problems that our project works
+
+3) Issues / Blockers
+- How do we make this a proper product?
+
+4) Action Items
+- Action: Have some small prototyped service | Owner: All | Due: Oct 30th
+- Action: Workbook completed | Owner: All | Due: Oct 27th
+
+5) Plans / Goals for Next Meeting
+- Complete Workbook
+- prototype product
