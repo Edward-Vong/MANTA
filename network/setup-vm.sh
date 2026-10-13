@@ -52,9 +52,49 @@ mkdir -p "$HOME/src"
 if [[ ! -e "$ryu_source" ]]; then
     git clone https://github.com/faucetsdn/ryu.git "$ryu_source"
 fi
+# Ryu 4.34 pins eventlet==0.31.1, whose dnspython constraint conflicts with
+# the Python 3.10-compatible dnspython version used on Ubuntu 22.04.
+"$venv/bin/python" - "$ryu_source" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+replacements = {
+    "eventlet==0.31.1": "eventlet==0.33.3",
+    "eventlet>=0.33.3,<0.34": "eventlet==0.33.3",
+    "dnspython<2.0.0,>=1.15.0": "dnspython==2.2.1",
+    "dnspython>=2.3.0,<3": "dnspython==2.2.1",
+    "dnspython==2.3.0": "dnspython==2.2.1",
+}
+for relpath in (
+    "tools/pip-requires",
+    "requirements.txt",
+    "pip-requirements.txt",
+    "setup.cfg",
+    "setup.py",
+):
+    path = root / relpath
+    if not path.exists():
+        continue
+    text = path.read_text()
+    patched = text
+    for old, new in replacements.items():
+        patched = patched.replace(old, new)
+    if patched != text:
+        path.write_text(patched)
+PY
+rm -rf "$ryu_source"/*.egg-info "$ryu_source"/build "$ryu_source"/dist
+(
+    cd "$ryu_source"
+    "$venv/bin/python" setup.py egg_info
+)
+if grep -R -Fq 'eventlet==0.31.1' "$ryu_source"/*.egg-info; then
+    echo "Ryu metadata still pins eventlet==0.31.1 after patching." >&2
+    exit 1
+fi
 # Keep the existing checkout on reruns; record its commit below.
 "$venv/bin/python" -m pip install --no-build-isolation \
-    'eventlet==0.33.3' 'dnspython==2.3.0' "$ryu_source"
+    'eventlet==0.33.3' 'dnspython==2.2.1' "$ryu_source"
 "$venv/bin/python" -m pip check
 "$venv/bin/ryu-manager" --version
 
