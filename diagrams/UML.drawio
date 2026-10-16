@@ -1,0 +1,97 @@
+<mxfile host="Electron">
+  <diagram name="01 - Components" id="uml-components">
+    <mxGraphModel dx="1562" dy="1254" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="boundary" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#F5F3FF;strokeColor=#DDD6FE;" value="" vertex="1">
+          <mxGeometry height="300" width="1480" x="60" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="controllerlabel" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=none;strokeColor=none;align=left;verticalAlign=middle;spacing=0;fontSize=22;fontColor=#172B4D;" value="«subsystem» MANTA Controller" vertex="1">
+          <mxGeometry height="40" width="330" x="635" y="153" as="geometry" />
+        </mxCell>
+        <mxCell id="policy" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#EDE9FE;strokeColor=#7C3AED;shape=component;align=center;spacingLeft=20;" value="Policy Manager" vertex="1">
+          <mxGeometry height="110" width="290" x="120" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="coord" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#EDE9FE;strokeColor=#7C3AED;shape=component;align=center;spacingLeft=20;" value="Rotation Coordinator" vertex="1">
+          <mxGeometry height="110" width="310" x="590" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="pool" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#EDE9FE;strokeColor=#7C3AED;shape=component;align=center;spacingLeft=20;" value="Identity Pool&#xa;Generations" vertex="1">
+          <mxGeometry height="110" width="330" x="1110" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="pc" edge="1" parent="1" source="policy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#7C3AED;fontColor=#7C3AED;dashed=1;startArrow=none;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;endArrow=open;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="coord" value="rotation policy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cp" edge="1" parent="1" source="coord" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#7C3AED;fontColor=#7C3AED;dashed=1;startArrow=none;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;endArrow=open;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="pool" value="allocate / track">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gateway" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#EFF6FF;strokeColor=#93C5FD;" value="" vertex="1">
+          <mxGeometry height="270" width="480" x="490" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="gwlabel" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=none;strokeColor=none;align=left;verticalAlign=middle;spacing=0;fontSize=21;fontColor=#172B4D;" value="«subsystem» Service Gateway" vertex="1">
+          <mxGeometry height="40" width="290" x="585" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="control" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#EDE9FE;strokeColor=#7C3AED;shape=component;align=center;spacingLeft=20;" value="Handoff Control" vertex="1">
+          <mxGeometry height="90" width="200" x="510" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="vUDZ6q5XHQfSZ7RamvWu-3" edge="1" parent="1" source="p4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;fillColor=#ffe6cc;strokeColor=light-dark(#d97706, #996500);strokeWidth=2;" target="telemetry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vUDZ6q5XHQfSZ7RamvWu-5" connectable="0" parent="vUDZ6q5XHQfSZ7RamvWu-3" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font&gt;&lt;span style=&quot;font-size: 14px; color: light-dark(rgb(244, 167, 14), rgb(105, 158, 255));&quot;&gt;Measurements&lt;/span&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="bEeE3ucLiQb31k1pFDS0-2" edge="1" parent="1" source="p4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeColor=light-dark(#2563eb, #ededed);strokeWidth=2;" target="client">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="bEeE3ucLiQb31k1pFDS0-3" connectable="0" parent="bEeE3ucLiQb31k1pFDS0-2" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="&lt;font color=&quot;#2563eb&quot;&gt;&lt;span style=&quot;font-size: 14px;&quot;&gt;Translated Packets from P4&lt;/span&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry relative="1" x="0.0358" y="-1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p4" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#DBEAFE;strokeColor=#2563EB;shape=component;align=center;spacingLeft=20;" value="P4 Pipeline" vertex="1">
+          <mxGeometry height="90" width="180" x="755" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="client" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#DCFCE7;strokeColor=#16A34A;shape=component;align=center;spacingLeft=20;" value="MANTA Client Agent" vertex="1">
+          <mxGeometry height="100" width="280" x="130" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="service" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#FFFFFF;strokeColor=#64748B;shape=component;align=center;spacingLeft=20;" value="Protected Service" vertex="1">
+          <mxGeometry height="100" width="310" x="1160" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="program" edge="1" parent="1" source="coord" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#7C3AED;fontColor=#7C3AED;dashed=1;startArrow=none;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;endArrow=open;exitX=0.819;exitY=0.991;entryX=0.5;entryY=0;exitDx=0;exitDy=0;exitPerimeter=0;" target="p4" value="install / activate">
+          <mxGeometry relative="1" x="-0.0436" y="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="handoff" edge="1" parent="1" source="coord" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#7C3AED;fontColor=#7C3AED;dashed=1;startArrow=none;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;endArrow=open;exitX=0.116;exitY=1.009;entryX=0.58;entryY=0.022;exitDx=0;exitDy=0;exitPerimeter=0;entryDx=0;entryDy=0;entryPerimeter=0;" target="control" value="coordinate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="notify" edge="1" parent="1" source="control" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#7C3AED;fontColor=#7C3AED;dashed=0;startArrow=block;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;startArrow=open;endArrow=open;exitX=0;exitY=0.3;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="client" value="secure updates / ACK">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="forward" edge="1" parent="1" source="p4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#2563EB;fontColor=#2563EB;startArrow=classic;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;endArrow=none;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="service" value="translate / forward">
+          <mxGeometry relative="1" x="0.0161" as="geometry">
+            <mxPoint y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="telemetry" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#FEF3C7;strokeColor=#D97706;shape=component;align=center;spacingLeft=20;" value="Telemetry Collector" vertex="1">
+          <mxGeometry height="90" width="360" x="710" y="860" as="geometry" />
+        </mxCell>
+        <mxCell id="back3" edge="1" parent="1" source="telemetry" style="html=0;fontFamily=Helvetica;fontSize=16;strokeWidth=2;strokeColor=#D97706;fontColor=#D97706;dashed=0;endArrow=open;endFill=1;labelBackgroundColor=#FFFFFF;verticalAlign=bottom;spacingBottom=8;edgeStyle=orthogonalEdgeStyle;entryX=0.069;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" target="policy" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="20" y="895" />
+              <mxPoint x="20" y="305" />
+            </Array>
+            <mxPoint x="40" y="305" as="sourcePoint" />
+            <mxPoint x="120" y="305" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=none;strokeColor=none;align=left;verticalAlign=middle;spacing=0;fontSize=16;fontColor=#64748B;" value="Solid: communication &#xa;Dashed: dependency / control &#xa;Public identity is mapped by the P4 pipeline." vertex="1">
+          <mxGeometry height="60" width="320" x="1210" y="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

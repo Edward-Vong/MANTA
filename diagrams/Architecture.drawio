@@ -1,0 +1,71 @@
+<mxfile host="Electron">
+  <diagram name="01 - Architecture" id="simple-architecture">
+    <mxGraphModel dx="2184" dy="1129" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="private" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#F8FAFC;strokeColor=#CBD5E1;" value="" vertex="1">
+          <mxGeometry height="400" width="670" x="60" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="privateLabel" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=none;strokeColor=none;align=left;verticalAlign=middle;spacing=0;fontSize=17;fontColor=#64748B;" value="SERVICE NETWORK" vertex="1">
+          <mxGeometry height="35" width="170" x="310" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="clientarea" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#F0FDF4;strokeColor=#BBF7D0;" value="" vertex="1">
+          <mxGeometry height="400" width="500" x="1040" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="clientLabel" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=none;strokeColor=none;align=left;verticalAlign=middle;spacing=0;fontSize=17;fontColor=#15803D;" value="CLIENT DEVICE" vertex="1">
+          <mxGeometry height="35" width="130" x="1225" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="publicLabel" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=none;strokeColor=none;align=left;verticalAlign=middle;spacing=0;fontSize=17;fontColor=#64748B;" value="PUBLIC NETWORK" vertex="1">
+          <mxGeometry height="30" width="160" x="800" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="controller" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#EDE9FE;strokeColor=#7C3AED;" value="MANTA Controller&#xa;Identity Rotation / IP Rotator" vertex="1">
+          <mxGeometry height="100" width="420" x="320" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="service" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#FFFFFF;strokeColor=#64748B;" value="Service&#xa;Stable endpoint" vertex="1">
+          <mxGeometry height="130" width="190" x="95" y="475" as="geometry" />
+        </mxCell>
+        <mxCell id="gateway" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#DBEAFE;strokeColor=#2563EB;verticalAlign=top;fontStyle=1;" value="MANTA Service Gateway" vertex="1">
+          <mxGeometry height="265" width="330" x="365" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="pipeline" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#FFFFFF;strokeColor=#93C5FD;" value="P4 Pipeline&#xa;Rewrite • Wrap / Unwrap" vertex="1">
+          <mxGeometry height="80" width="280" x="390" y="475" as="geometry" />
+        </mxCell>
+        <mxCell id="identities" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#FEF3C7;strokeColor=#D97706;" value="Public identities" vertex="1">
+          <mxGeometry height="75" width="280" x="390" y="585" as="geometry" />
+        </mxCell>
+        <mxCell id="agent" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#DCFCE7;strokeColor=#16A34A;" value="MANTA Client Agent&#xa;Wrap / Unwrap • Sync" vertex="1">
+          <mxGeometry height="135" width="250" x="1080" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="user" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=#FFFFFF;strokeColor=#64748B;" value="User" vertex="1">
+          <mxGeometry height="95" width="110" x="1390" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="sg" edge="1" parent="1" source="service" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#2563EB;fontColor=#2563EB;dashed=0;startArrow=block;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;entryX=0.012;entryY=0.453;entryDx=0;entryDy=0;entryPerimeter=0;" target="gateway" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ga" edge="1" parent="1" source="gateway" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#2563EB;fontColor=#2563EB;dashed=0;startArrow=block;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.45;entryX=0;entryY=0.5;" target="agent" value="MANTA traffic">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="au" edge="1" parent="1" source="agent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#2563EB;fontColor=#2563EB;dashed=0;startArrow=block;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="user" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cg" edge="1" parent="1" source="controller" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontFamily=Helvetica;fontSize=14;strokeWidth=2;strokeColor=#7C3AED;fontColor=#7C3AED;dashed=1;startArrow=none;startFill=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;entryX=0.5;entryY=0;exitDx=0;exitDy=0;" target="gateway" value="Program identities">
+          <mxGeometry relative="1" x="-0.3333" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="update" edge="1" parent="1" style="html=0;fontFamily=Helvetica;fontSize=16;strokeWidth=2;strokeColor=#7C3AED;fontColor=#7C3AED;dashed=1;endArrow=block;endFill=1;labelBackgroundColor=#FFFFFF;verticalAlign=bottom;spacingBottom=8;edgeStyle=orthogonalEdgeStyle;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" target="agent" value="Authenticated update / ACK">
+          <mxGeometry relative="1" x="-0.2161" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="695" y="655" as="sourcePoint" />
+            <mxPoint x="990" y="670" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fontFamily=Helvetica;fontSize=17;fontColor=#172B4D;strokeWidth=2;spacing=12;fillColor=none;strokeColor=none;align=left;verticalAlign=middle;spacing=0;fontSize=19;fontColor=#475569;" value="Blue solid: data &#xa;Purple dashed: control &#xa;G = identity generation" vertex="1">
+          <mxGeometry height="50" width="200" x="1330" y="200" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
