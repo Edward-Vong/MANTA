@@ -1,0 +1,31 @@
+Meeting Type: Team-Only
+Date: 2026-10-15th
+Start–End Time: 1:30pm - 2pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- completed diagrams
+- testing and performance evaluation completed
+- 
+
+2) Accomplished During This Meeting
+- split up the work to complete to workbook and prototyping
+
+3) Issues / Blockers
+N/A
+
+4) Action Items
+- Action: Setup switch and basic forwarding | Owner: Edward | Due: Oct 23rd
+- Action: Rotation Coordinator Groundwork | Owner: Edward | Due: Oct 29th
+- Action: P4 Pipeline Groundwork | Owner: undecided | Due: Oct 29th
+- Action: Policy Manager Groundwork | Owner: undecided | Due: Oct 29th
+- Action: Complete Workbook 2 for Advisor Meeting | Owner: All | Due: Oct 26rd
+
+5) Plans / Goals for Next Meeting
+- all action items completed
+- workbook submitted
+
