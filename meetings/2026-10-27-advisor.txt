@@ -1,0 +1,26 @@
+Meeting Type: Advisor
+Date: 2026-10-27
+Start–End Time: 1-1:30pm
+Location/Mode: Zoom
+Attendees:
+- Advisor: Sujata Ramamoorthy
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Completed most of workbook setup
+
+2) Accomplished During This Meeting
+- short meeting for updates and progress report
+
+3) Issues / Blockers
+- NA
+
+4) Action Items
+- Action: Completed workbook | Owner: All | Due: Oct 28th
+- Action: Design Specs | Owner: All | Due: Oct 28th
+- Action: Start Implementation based of Design Spec Split | Owner: All | Due: Nov 13th
+
+5) Plans / Goals for Next Meeting
+- Have something to show and discuss about our project

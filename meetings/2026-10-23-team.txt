@@ -1,5 +1,5 @@
 Meeting Type: Team-Only
-Date: 2026-10-15th
+Date: 2026-10-23th
 Start–End Time: 1:30pm - 2pm
 Location/Mode: Discord
 Attendees:
@@ -21,8 +21,8 @@ N/A
 4) Action Items
 - Action: Setup switch and basic forwarding | Owner: Edward | Due: Oct 23rd
 - Action: Rotation Coordinator Groundwork | Owner: Edward | Due: Oct 29th
-- Action: P4 Pipeline Groundwork | Owner: undecided | Due: Oct 29th
-- Action: Policy Manager Groundwork | Owner: undecided | Due: Oct 29th
+- Action: P4 Pipeline Groundwork | Owner: Vicki | Due: Oct 29th
+- Action: Policy Manager Groundwork | Owner: Owen | Due: Oct 29th
 - Action: Complete Workbook 2 for Advisor Meeting | Owner: All | Due: Oct 26rd
 
 5) Plans / Goals for Next Meeting
