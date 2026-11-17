@@ -1,0 +1,33 @@
+Meeting Type: Team
+Date: 2026-11-09
+Start–End Time: 1-1:30pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Workbook done
+- function stubs for controller
+- topology groundwork completed
+
+2) Accomplished During This Meeting
+- Plan for work for the week
+- Prep for Professor meeting EOW
+- Plan for integration work
+
+3) Issues / Blockers
+- NA
+
+4) Action Items
+- Action: Stubs For Policy Manager | Owner: Owen | Due: Nov 13th
+- Action: Implementation Completed for All completed Stubs | Owner: Edward | Due: Nov 13th
+- Action: Stubs/Implementation | Owner: Vicki | Due: Nov 13th
+- Action: All component complete | Owner: ALL | Due: 23rd?
+- Action: First Report | Owner: All | Due: Dec 4th
+
+5) Plans / Goals for Next Meeting
+- Stubs completed Min
+- Implementation Started 
+- meet before professor meeting
