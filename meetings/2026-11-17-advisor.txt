@@ -1,0 +1,28 @@
+Meeting Type: Advisor
+Date: 2026-11-17
+Start–End Time: 1-1:30pm
+Location/Mode: Zoom
+Attendees:
+- Advisor: Sujata Ramamoorthy
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Progress has been made for implementation
+
+2) Accomplished During This Meeting
+- update meeting for check-in
+
+3) Issues / Blockers
+- Time Crunch
+- Blocker: Owen needs my work to start his
+
+4) Action Items
+- Action: Figure out what goes into the demo | Owner: All | Due: Nov 20/21st
+- Action: Implement/Integrated Demo | Owner: All | Due: Nov 27th
+- Action: Integration Testing/Debuging Demo | Owner: All | Due: Dec 3rd
+- Action: Present | Owner: All | Due: Dec 4th
+
+5) Plans / Goals for Next Meeting
+- Be able to Demo for Next Advisor Meeting
