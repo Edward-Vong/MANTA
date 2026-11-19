@@ -1,9 +1,3 @@
 MANTA.ova
-tests/
-
-# Generated Python and build artifacts
-__pycache__/
-*.py[cod]
-build/
-*.stale/
-
+controller/__pycache__
+tests/__pycache__

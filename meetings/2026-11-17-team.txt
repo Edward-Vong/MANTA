@@ -1,0 +1,35 @@
+Meeting Type: Team
+Date: 2026-11-17
+Start–End Time: 1-1:30pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Vicki installed and uploaded new VMs
+- Static Translations completed
+- First Draft of Policy management functions
+- First Draft of Rotator (Untested)
+
+2) Accomplished During This Meeting
+- Scheduling Demo for the Rest of the Semester
+
+3) Issues / Blockers
+- Edward needs to implement test cases for Telemetry Collector
+
+4) Action Items
+- Action: Test Rotator Functions | Owner: Edward | Due: Nov 17th
+- Action: Implement Test Cases for Telemetry Collector | Owner: Edward | Due: Nov 19th
+- Action: Front and Back Pipelien completed | Owner: Vicki | Due: Nov 20th
+- Action: Figure out what goes into the demo | Owner: All | Due: Nov 20/21st
+- Action: All component complete | Owner: ALL | Due: Nov 23rd
+- Action: Implement/Integrated Demo | Owner: All | Due: Nov 27th
+- Action: Integration Testing/Debuging Demo | Owner: All | Due: Dec 3rd
+- Action: Slides for Demo | Owner: All | Due: Dec 4th
+- Action: First Report | Owner: All | Due: Dec 4th
+
+5) Plans / Goals for Next Meeting
+- Meet EoW 20th for Update and Have plans for Demo
+- Have Telemetry collector done
