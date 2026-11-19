@@ -26,6 +26,7 @@ PUBLIC_GATEWAY_INTF = "bmv2_public"
 INTERNAL_GATEWAY_INTF = "bmv2_internal"
 PUBLIC_GATEWAY_IP = "10.0.0.254"
 INTERNAL_GATEWAY_IP = "10.0.1.254"
+PUBLIC_IDENTITY_IP = "10.0.0.100"
 PUBLIC_GATEWAY_MAC = "02:00:00:00:01:01"
 INTERNAL_GATEWAY_MAC = "02:00:00:00:01:02"
 CLIENT_MAC = "02:00:00:00:00:01"
@@ -59,6 +60,10 @@ def bmv2_command(executable="simple_switch_grpc"):
 
     return [
         executable,
+        "--log-console",
+        "--log-level",
+        "debug",
+        "--log-flush",
         "-i",
         f"{PUBLIC_GATEWAY_PORT}@{PUBLIC_GATEWAY_INTF}",
         "-i",
@@ -236,6 +241,11 @@ def configure_static_smoke_path(net):
         (
             client,
             f"ip neigh replace {PUBLIC_GATEWAY_IP} lladdr {PUBLIC_GATEWAY_MAC} "
+            f"nud permanent dev {client_intf}",
+        ),
+        (
+            client,
+            f"ip neigh replace {PUBLIC_IDENTITY_IP} lladdr {PUBLIC_GATEWAY_MAC} "
             f"nud permanent dev {client_intf}",
         ),
         (

@@ -22,20 +22,29 @@ header ipv4_t {
     bit<32> dst_addr;
 }
 
+header tcp_t {
+    bit<16> src_port;
+    bit<16> dst_port;
+    bit<32> seq_no;
+    bit<32> ack_no;
+    bit<4> data_offset;
+    bit<3> reserved;
+    bit<9> flags;
+    bit<16> window;
+    bit<16> checksum;
+    bit<16> urgent_ptr;
+}
+
 struct headers_t {
     ethernet_t ethernet;
     ipv4_t ipv4;
+    tcp_t tcp;
 }
 
 struct metadata_t {
+    bit<16> tcp_length;
+    bit<32> active_generation_id;
 }
-
-// Static Milestone 2E-2 smoke-path addresses.  These will be replaced by
-// mapping-controlled table entries in a later pipeline.
-const bit<48> PUBLIC_GATEWAY_MAC = 48w0x020000000101;
-const bit<48> INTERNAL_GATEWAY_MAC = 48w0x020000000102;
-const bit<48> CLIENT_MAC = 48w0x020000000001;
-const bit<48> SERVER_MAC = 48w0x020000000002;
 
 parser ParserImpl(
     packet_in packet,
@@ -57,6 +66,14 @@ parser ParserImpl(
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
+        transition select(hdr.ipv4.protocol) {
+            8w6: parse_tcp;
+            default: accept;
+        }
+    }
+
+    state parse_tcp {
+        packet.extract(hdr.tcp);
         transition accept;
     }
 }
@@ -74,19 +91,96 @@ control IngressImpl(
     inout metadata_t meta,
     inout standard_metadata_t standard_metadata
 ) {
+    action set_active_generation(bit<32> generation_id) {
+        meta.active_generation_id = generation_id;
+    }
+
+    table active_generation_selector {
+        key = {
+            standard_metadata.ingress_port: exact;
+        }
+        actions = {
+            set_active_generation;
+        }
+        size = 2;
+        default_action = set_active_generation(32w1);
+    }
+
+    action drop() {
+        mark_to_drop(standard_metadata);
+    }
+
+    action set_forward_mapping(
+        bit<32> internal_ip,
+        bit<16> internal_port,
+        bit<48> source_mac,
+        bit<48> destination_mac
+    ) {
+        hdr.ipv4.dst_addr = internal_ip;
+        hdr.tcp.dst_port = internal_port;
+        hdr.ethernet.src_addr = source_mac;
+        hdr.ethernet.dst_addr = destination_mac;
+        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+        standard_metadata.egress_spec = 2;
+    }
+
+    action set_reverse_mapping(
+        bit<32> public_ip,
+        bit<16> public_port,
+        bit<48> source_mac,
+        bit<48> destination_mac
+    ) {
+        hdr.ipv4.src_addr = public_ip;
+        hdr.tcp.src_port = public_port;
+        hdr.ethernet.src_addr = source_mac;
+        hdr.ethernet.dst_addr = destination_mac;
+        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+        standard_metadata.egress_spec = 1;
+    }
+
+    table public_identity_forward {
+        key = {
+            meta.active_generation_id: exact;
+            hdr.ipv4.dst_addr: exact;
+            hdr.tcp.dst_port: exact;
+        }
+        actions = {
+            set_forward_mapping;
+            drop;
+        }
+        size = 16;
+        default_action = drop();
+    }
+
+    table internal_endpoint_reverse {
+        key = {
+            meta.active_generation_id: exact;
+            hdr.ipv4.src_addr: exact;
+            hdr.tcp.src_port: exact;
+        }
+        actions = {
+            set_reverse_mapping;
+            drop;
+        }
+        size = 16;
+        default_action = drop();
+    }
+
     apply {
-        if (hdr.ipv4.isValid() && hdr.ipv4.ttl > 1) {
-            if (standard_metadata.ingress_port == 1) {
-                hdr.ethernet.src_addr = INTERNAL_GATEWAY_MAC;
-                hdr.ethernet.dst_addr = SERVER_MAC;
-                hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
-                standard_metadata.egress_spec = 2;
-            } else if (standard_metadata.ingress_port == 2) {
-                hdr.ethernet.src_addr = PUBLIC_GATEWAY_MAC;
-                hdr.ethernet.dst_addr = CLIENT_MAC;
-                hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
-                standard_metadata.egress_spec = 1;
-            }
+        active_generation_selector.apply();
+        if (hdr.ipv4.isValid() && hdr.tcp.isValid()) {
+            // The parser extracts the fixed IPv4 header, so the TCP length is
+            // the IPv4 total length minus that 20-byte header.
+            meta.tcp_length = hdr.ipv4.total_len - 16w20;
+        }
+        if (!hdr.ipv4.isValid() || !hdr.tcp.isValid() || hdr.ipv4.ttl <= 1) {
+            drop();
+        } else if (standard_metadata.ingress_port == 1) {
+            public_identity_forward.apply();
+        } else if (standard_metadata.ingress_port == 2) {
+            internal_endpoint_reverse.apply();
+        } else {
+            drop();
         }
     }
 }
@@ -123,6 +217,27 @@ control ComputeChecksumImpl(
             hdr.ipv4.hdr_checksum,
             HashAlgorithm.csum16
         );
+        update_checksum_with_payload(
+            hdr.tcp.isValid(),
+            {
+                hdr.ipv4.src_addr,
+                hdr.ipv4.dst_addr,
+                8w0,
+                hdr.ipv4.protocol,
+                meta.tcp_length,
+                hdr.tcp.src_port,
+                hdr.tcp.dst_port,
+                hdr.tcp.seq_no,
+                hdr.tcp.ack_no,
+                hdr.tcp.data_offset,
+                hdr.tcp.reserved,
+                hdr.tcp.flags,
+                hdr.tcp.window,
+                hdr.tcp.urgent_ptr
+            },
+            hdr.tcp.checksum,
+            HashAlgorithm.csum16
+        );
     }
 }
 
@@ -133,6 +248,7 @@ control DeparserImpl(
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
+        packet.emit(hdr.tcp);
     }
 }
 
