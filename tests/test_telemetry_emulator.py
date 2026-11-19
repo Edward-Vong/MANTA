@@ -7,11 +7,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from experiments import telemetry_emulator as demo
-from experiments.telemetry_emulator import SCENARIOS, TelemetrySimulator
+from policy import telemetry_emulator as demo
+from policy.telemetry_emulator import SCENARIOS, TelemetrySimulator
 
 
-class TelemetryDemoTests(unittest.TestCase):
+class TelemetryEmulatorTests(unittest.TestCase):
     def test_scenarios_and_measurements(self):
         simulator = TelemetrySimulator(samples_per_scenario=1)
         samples = [simulator.fetch_network_parameters() for _ in SCENARIOS]
@@ -24,14 +24,34 @@ class TelemetryDemoTests(unittest.TestCase):
             self.assertEqual(collected_at.tzinfo, timezone.utc)
 
             if sample["packets_sent"] is not None:
+                self.assertGreaterEqual(sample["packets_received"], 0)
                 self.assertLessEqual(sample["packets_received"], sample["packets_sent"])
                 self.assertEqual(sample["packets_lost"], sample["packets_sent"] - sample["packets_received"])
+                self.assertLessEqual(sample["max_loss_burst_packets"], sample["packets_lost"])
                 self.assertLessEqual(sample["handoff_failures"], sample["handoff_attempts"])
             if sample["packets_sent"]:
                 self.assertEqual(sample["packet_loss_percent"], round(
                     100 * sample["packets_lost"] / sample["packets_sent"], 2))
 
-        healthy, latency, loss, handoff, degraded, outage, idle, no_data, recovery = samples
+            if sample["packets_received"]:
+                self.assertGreater(sample["rtt_ms"], 0)
+                self.assertLessEqual(sample["rtt_ms"], sample["rtt_max_ms"])
+                self.assertLessEqual(sample["rtt_p95_ms"], sample["rtt_max_ms"])
+            else:
+                for field in ("rtt_ms", "rtt_p95_ms", "rtt_max_ms"):
+                    self.assertIsNone(sample[field])
+
+        by_scenario = {sample["scenario"]: sample for sample in samples}
+        healthy = by_scenario["healthy"]
+        latency = by_scenario["latency"]
+        loss = by_scenario["loss"]
+        handoff = by_scenario["handoff_failure"]
+        degraded = by_scenario["degraded"]
+        outage = by_scenario["outage"]
+        idle = by_scenario["idle"]
+        no_data = by_scenario["no_data"]
+        recovery = by_scenario["recovery"]
+
         self.assertLessEqual(healthy["rtt_ms"], 5)
         self.assertGreaterEqual(latency["rtt_ms"], 80)
         self.assertGreater(loss["packets_sent"] - loss["packets_received"], 0)
@@ -41,6 +61,7 @@ class TelemetryDemoTests(unittest.TestCase):
         self.assertGreater(degraded["packet_loss_percent"], 0)
         self.assertEqual(degraded["handoff_failures"], 1)
         self.assertEqual(outage["packet_loss_percent"], 100)
+        self.assertEqual(outage["max_loss_burst_packets"], outage["packets_sent"])
         self.assertIsNone(outage["rtt_ms"])
         self.assertEqual(idle["packets_sent"], 0)
         self.assertEqual(idle["handoff_attempts"], 0)
@@ -50,11 +71,54 @@ class TelemetryDemoTests(unittest.TestCase):
         self.assertIsNone(no_data["packets_sent"])
         self.assertIsNone(no_data["handoff_attempts"])
         self.assertIsNone(no_data["packet_loss_percent"])
+        self.assertIsNone(no_data["max_loss_burst_packets"])
         self.assertLessEqual(recovery["rtt_ms"], 5)
         self.assertEqual(recovery["handoff_failures"], 0)
 
         with self.assertRaises(StopIteration):
             simulator.fetch_network_parameters()
+
+    def test_burst_loss_differs_from_random_loss(self):
+        # Similar overall loss rates should still reveal different loss patterns.
+        results = {}
+        for scenario in ("loss", "burst_loss"):
+            simulator = TelemetrySimulator(30, seed=42, scenarios=(scenario,))
+            samples = [simulator.fetch_network_parameters() for _ in range(30)]
+            rate = sum(s["packets_lost"] for s in samples) / sum(s["packets_sent"] for s in samples)
+            mean_burst = sum(s["max_loss_burst_packets"] for s in samples) / len(samples)
+            results[scenario] = rate, mean_burst
+
+        random_rate, random_burst = results["loss"]
+        burst_rate, burst_length = results["burst_loss"]
+        self.assertAlmostEqual(random_rate, burst_rate, delta=0.02)
+        self.assertGreater(burst_length, random_burst * 3)
+
+    def test_latency_tails_and_gradual_recovery(self):
+        groups = {}
+        for scenario in ("healthy", "latency_spike", "degraded", "recovery"):
+            simulator = TelemetrySimulator(8, seed=42, scenarios=(scenario,))
+            groups[scenario] = [simulator.fetch_network_parameters() for _ in range(8)]
+
+        for sample in groups["latency_spike"]:
+            self.assertGreater(sample["rtt_p95_ms"], sample["rtt_ms"] * 2)
+        for sample in groups["healthy"]:
+            self.assertLess(sample["rtt_p95_ms"], sample["rtt_ms"] * 2)
+
+        for field in ("rtt_ms", "packet_loss_percent"):
+            self.assertGreater(groups["degraded"][-1][field], groups["degraded"][0][field])
+            self.assertLess(groups["recovery"][-1][field], groups["recovery"][0][field])
+        self.assertLess(groups["recovery"][-1]["rtt_ms"], 5)
+        self.assertGreater(groups["recovery"][3]["rtt_ms"], 30)
+
+    def test_handoffs_only_occur_on_scheduled_windows(self):
+        simulator = TelemetrySimulator(7, scenarios=("handoff_failure",))
+        samples = [simulator.fetch_network_parameters() for _ in range(7)]
+        self.assertEqual([s["handoff_attempts"] for s in samples], [1, 0, 0, 1, 0, 0, 1])
+        self.assertEqual([s["handoff_failures"] for s in samples], [1, 0, 0, 1, 0, 0, 1])
+        self.assertEqual([s["handoff_failure_percent"] for s in samples],
+                         [100, None, None, 100, None, None, 100])
+        # A control-plane failure can leave the old data path healthy.
+        self.assertTrue(all(s["rtt_ms"] < 5 for s in samples))
 
     def test_same_seed_replays_identical_measurements(self):
         first = TelemetrySimulator(seed=42)
@@ -91,6 +155,9 @@ class TelemetryDemoTests(unittest.TestCase):
 
             self.assertEqual(first.name, f"telemetry_{stamp:%Y-%m-%d_%H-%M-%S_%fZ}.json")
             self.assertEqual(report["source"], "synthetic")
+            self.assertEqual(report["schema_version"], 2)
+            self.assertFalse(report["model"]["calibrated_to_real_measurements"])
+            self.assertEqual(report["model"]["references"], list(demo.REFERENCES))
             self.assertTrue(report["complete"])
             self.assertEqual(report["sample_count"], 1)
             self.assertEqual(report["samples"], [sample])
