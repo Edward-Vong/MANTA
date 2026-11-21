@@ -1,5 +1,6 @@
 """BMv2/P4Runtime gateway adapter for the generation-aware prototype."""
 
+import asyncio
 import ipaddress
 import queue
 import sys
@@ -314,6 +315,7 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
         self._active = {}
         self._pre_activation = {}
         self._activation_committed = set()
+        self._completed_rollbacks = set()
 
     def _not_implemented(self, operation, generation_id=None):
         return GatewayResult.failure(
@@ -485,6 +487,38 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
         request.updates.append(update)
         self._session.stub.Write(request)
 
+    def _write_selector_update(
+        self,
+        entity,
+        update_type,
+        text_format,
+        label,
+        table,
+        action,
+        names,
+        values,
+        parameters,
+    ):
+        p4runtime_pb2 = self._bindings[3]
+        request = p4runtime_pb2.WriteRequest(
+            device_id=DEVICE_ID,
+            election_id=self._session.election_id,
+        )
+        update = p4runtime_pb2.Update(type=update_type)
+        update.entity.CopyFrom(entity)
+        request.updates.append(update)
+        _print_update_details(
+            text_format,
+            label,
+            table,
+            action,
+            names,
+            values,
+            parameters,
+            request,
+        )
+        self._session.stub.Write(request)
+
     def _install_entries(self, generation, allow_existing=True):
         p4runtime_pb2 = self._ensure_ready()
         text_format = self._bindings[1]
@@ -519,28 +553,22 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
         p4runtime_pb2 = self._ensure_ready()
         text_format = self._bindings[1]
         for label, table, action, names, values, parameters, entity in self._selector_entities(generation_id):
-            request = p4runtime_pb2.WriteRequest(
-                device_id=DEVICE_ID,
-                election_id=self._session.election_id,
+            update_type = (
+                p4runtime_pb2.Update.MODIFY
+                if self._read_table_entry(entity)
+                else p4runtime_pb2.Update.INSERT
             )
-            update = p4runtime_pb2.Update(type=p4runtime_pb2.Update.INSERT)
-            update.entity.CopyFrom(entity)
-            request.updates.append(update)
-            _print_update_details(text_format, label, table, action, names, values, parameters, request)
-            try:
-                self._session.stub.Write(request)
-            except Exception as error:
-                grpc = self._bindings[0]
-                if not isinstance(error, grpc.RpcError) or error.code() != grpc.StatusCode.ALREADY_EXISTS:
-                    raise
-                modify = p4runtime_pb2.WriteRequest(
-                    device_id=DEVICE_ID,
-                    election_id=self._session.election_id,
-                )
-                modify_update = p4runtime_pb2.Update(type=p4runtime_pb2.Update.MODIFY)
-                modify_update.entity.CopyFrom(entity)
-                modify.updates.append(modify_update)
-                self._session.stub.Write(modify)
+            self._write_selector_update(
+                entity,
+                update_type,
+                text_format,
+                label,
+                table,
+                action,
+                names,
+                values,
+                parameters,
+            )
 
     def _read_table_entry(self, entity):
         p4runtime_pb2 = self._bindings[3]
@@ -635,6 +663,7 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
             self._write_selector_generation(new_generation_id)
             self._active[service_id] = new_generation_id
             self._activation_committed.add(service_id)
+            self._pre_activation.pop(service_id, None)
             self._staged.discard(key)
             self._verified.discard(key)
             return GatewayResult.ok(
@@ -668,25 +697,98 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
             return self._failure("retire_generation", generation_id, error)
 
     def rollback_to(self, service_id: str, generation_id: int) -> GatewayResult:
-        if service_id in self._activation_committed:
+        pre_activation = self._pre_activation.get(service_id)
+        staged_keys = [key for key in self._staged if key[0] == service_id]
+        rollback_key = (service_id, generation_id)
+        current = self._local_active_generation(service_id)
+        if not staged_keys and rollback_key in self._completed_rollbacks:
+            return GatewayResult.ok(
+                "rollback_to",
+                "staged cleanup already completed",
+                generation_id,
+            )
+        if (
+            service_id in self._activation_committed
+            and pre_activation is None
+            and not staged_keys
+        ):
             return GatewayResult.failure("rollback_to", "COMMITTED", "cannot undo a committed activation", generation_id)
         try:
-            current = self._local_active_generation(service_id)
-            pre_activation = self._pre_activation.get(service_id)
             if pre_activation is not None and generation_id != pre_activation:
                 return GatewayResult.failure("rollback_to", "UNSAFE_TARGET", "rollback target was not active before the attempted activation", generation_id)
+            if staged_keys and generation_id != current and pre_activation is None:
+                return GatewayResult.failure("rollback_to", "UNSAFE_TARGET", "rollback target is not the current active generation", generation_id)
             if current != generation_id:
                 self._write_selector_generation(generation_id)
-            for key in list(self._staged):
-                if key[0] == service_id:
-                    generation = self._generations.get(key)
-                    if generation is not None:
-                        self._delete_entries(generation)
-                    self._generations.pop(key, None)
-                    self._staged.discard(key)
-                    self._verified.discard(key)
+            for key in staged_keys:
+                generation = self._generations.get(key)
+                if generation is not None:
+                    self._delete_entries(generation)
+                self._generations.pop(key, None)
+                self._staged.discard(key)
+                self._verified.discard(key)
             self._active[service_id] = generation_id
             self._pre_activation.pop(service_id, None)
+            self._completed_rollbacks.add(rollback_key)
             return GatewayResult.ok("rollback_to", "pre-commit state restored", generation_id)
         except Exception as error:
             return self._failure("rollback_to", generation_id, error)
+
+
+class AsyncBmv2CoordinatorAdapter:
+    """Async coordinator boundary over the synchronous BMv2 gateway.
+
+    The Rotation Coordinator passes generation objects and awaits operations;
+    ``Bmv2P4RuntimeGateway`` intentionally keeps the canonical synchronous,
+    service-scoped GatewayRuleInterface. This adapter translates that boundary
+    without changing either public interface.
+    """
+
+    def __init__(self, gateway: Bmv2P4RuntimeGateway):
+        self.gateway = gateway
+
+    async def active_generation_id(self, service_id):
+        """Return locally tracked selector state; BMv2 selector readback is not used."""
+
+        return await asyncio.to_thread(
+            self.gateway._local_active_generation,
+            service_id,
+        )
+
+    async def stage_mapping(self, generation):
+        result = await asyncio.to_thread(self.gateway.stage_mapping, generation)
+        return result.success
+
+    async def verify_staged(self, generation):
+        result = await asyncio.to_thread(
+            self.gateway.verify_staged,
+            generation.service_id,
+            generation.generation_id,
+        )
+        return result.success
+
+    async def activate_mapping(self, new_generation, previous_generation):
+        previous_id = None if previous_generation is None else previous_generation.generation_id
+        result = await asyncio.to_thread(
+            self.gateway.activate_mapping,
+            new_generation.service_id,
+            new_generation.generation_id,
+            previous_id,
+        )
+        return result.success
+
+    async def retire_generation(self, generation):
+        result = await asyncio.to_thread(
+            self.gateway.retire_generation,
+            generation.service_id,
+            generation.generation_id,
+        )
+        return result.success
+
+    async def rollback_to(self, generation):
+        result = await asyncio.to_thread(
+            self.gateway.rollback_to,
+            generation.service_id,
+            generation.generation_id,
+        )
+        return result.success
