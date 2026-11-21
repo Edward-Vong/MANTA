@@ -29,17 +29,20 @@ REFERENCES = (
 
 
 def utc_timestamp(moment):
+    """Format a date and time as a timestamp string, using Z for UTC."""
     return moment.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def percentage(count, total):
+    """Calculate a percentage to two decimal places, or return None for missing data or a zero total."""
     return round(100 * count / total, 2) if count is not None and total else None
 
 
 class TelemetrySimulator:
-    """Independent test segments with stateful probe windows; no network access."""
+    """Generate fake network measurements for different conditions without accessing a real network."""
 
     def __init__(self, samples_per_scenario=3, seed=7, scenarios=SCENARIOS):
+        """Check the settings and initialize the scenarios, random generator, and sample counter."""
         if type(samples_per_scenario) is not int or samples_per_scenario < 1:
             raise ValueError("samples_per_scenario must be a positive integer")
 
@@ -52,7 +55,7 @@ class TelemetrySimulator:
         self.index = 0
 
     def _packet_window(self, scenario, progress):
-        """Simulate probe outcomes, then summarize only the returned replies."""
+        """Simulate one packet window and return sent and lost counts, the longest loss streak, and reply times."""
         if scenario == "no_data":
             return None, None, None, []
         if scenario == "idle":
@@ -106,7 +109,7 @@ class TelemetrySimulator:
         return sent, lost, longest_run, rtts
 
     def fetch_network_parameters(self):
-        """Return the next snapshot, or raise StopIteration when the demo ends."""
+        """Return the next sample of timing, packet loss, and handoff statistics, or raise StopIteration when finished."""
         scenario_index, offset = divmod(self.index, self.samples_per_scenario)
         if scenario_index >= len(self.scenarios):
             raise StopIteration
@@ -159,6 +162,7 @@ class TelemetrySimulator:
 
 
 def save_samples(samples, seed, output_dir=None, complete=True):
+    """Save the samples and simulation settings in a timestamped JSON file and return its path."""
     collected_at = datetime.now(timezone.utc)
     output_dir = OUTPUT_DIR if output_dir is None else Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -194,6 +198,7 @@ def save_samples(samples, seed, output_dir=None, complete=True):
 
 
 def main(argv=None):
+    """Read command-line options, generate samples, and save the results even if interrupted with Ctrl+C."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--samples", type=int, default=3, help="windows per scenario")
     parser.add_argument("--seed", type=int, default=7)
@@ -228,4 +233,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    # Run main when this file is executed as a program and use its return value as the exit code.
     raise SystemExit(main())
