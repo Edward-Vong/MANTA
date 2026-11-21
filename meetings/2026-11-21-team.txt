@@ -1,0 +1,35 @@
+Meeting Type: Team
+Date: 2026-11-21
+Start–End Time: 1-1:30pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Test rotator completed
+- Telemetry emulator made
+- most of pipeline completed
+
+2) Accomplished During This Meeting
+- progress update
+
+3) Issues / Blockers
+- Waiting on pipeline completion to integrate rotator
+- demo needs telemetry collector to plan. Pushing back
+
+4) Action Items
+- Action: Figure out what goes into the demo | Owner: All | Due: Nov 23rd
+- Action: All component complete | Owner: ALL | Due: Nov 23rd
+- Action: Implement/Integrated Demo | Owner: All | Due: Nov 27th
+- Action: Integration Testing/Debuging Demo | Owner: All | Due: Dec 3rd
+- Action: Slides for Demo | Owner: All | Due: Dec 4th
+- Action: First Report | Owner: All | Due: Dec 4th
+
+5) Plans / Goals for Next Meeting
+- Meet 24th for updates
+- Complete integration of rotator/handling
+- finish testing for pipeline
+- telemetry should be hooked to policy manager
+- be able to start hooking things together better
