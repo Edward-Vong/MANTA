@@ -6,7 +6,12 @@ import sys
 from pathlib import Path
 
 from .interface import GatewayRuleInterface
-from .models import GatewayResult, MappingGeneration
+from .models import (
+    GatewayResult,
+    InternalEndpoint,
+    MappingGeneration as GatewayMappingGeneration,
+    PublicIdentity,
+)
 
 
 REPOSITORY_DIR = Path(__file__).resolve().parents[1]
@@ -102,6 +107,71 @@ def _bytes_generation(value):
 
 def _bytes_mac(value):
     return bytes.fromhex(value.replace(":", ""))
+
+
+def normalize_mapping_generation(generation):
+    """Convert coordinator or gateway generations to the canonical gateway model.
+
+    The merged coordinator currently represents its internal endpoint with the
+    same ``public_ip``/``public_port`` shape used by its identity model and
+    stores the protocol on that identity.  The gateway boundary accepts that
+    shape and the canonical gateway ``MappingGeneration`` shape, but exposes
+    only the current TCP prototype to P4Runtime.
+    """
+
+    if isinstance(generation, GatewayMappingGeneration):
+        service_id = generation.service_id
+        generation_id = generation.generation_id
+        public_ip = generation.identity.public_ip
+        public_port = generation.identity.public_port
+        internal_ip = generation.internal_endpoint.internal_ip
+        internal_port = generation.internal_endpoint.internal_port
+        protocol = generation.protocol
+        identity_protocol = generation.identity.protocol
+    else:
+        service_id = getattr(generation, "service_id", None)
+        generation_id = getattr(generation, "generation_id", None)
+        identity = getattr(generation, "identity", None)
+        endpoint = getattr(generation, "internal_endpoint", None)
+        public_ip = getattr(identity, "public_ip", None)
+        public_port = getattr(identity, "public_port", None)
+        identity_protocol = getattr(identity, "protocol", None)
+        internal_ip = getattr(endpoint, "internal_ip", None)
+        internal_port = getattr(endpoint, "internal_port", None)
+        if internal_ip is None:
+            internal_ip = getattr(endpoint, "public_ip", None)
+        if internal_port is None:
+            internal_port = getattr(endpoint, "public_port", None)
+        protocol = getattr(generation, "protocol", None) or identity_protocol or "TCP"
+
+    if not isinstance(service_id, str) or not service_id.strip():
+        raise ValueError("mapping generation requires a non-empty service_id")
+    if isinstance(generation_id, bool) or not isinstance(generation_id, int) or generation_id < 1:
+        raise ValueError("mapping generation requires a positive integer generation_id")
+    if not isinstance(protocol, str) or protocol.upper() != "TCP":
+        raise ValueError("only TCP mappings are supported by the current P4 prototype")
+    if identity_protocol is not None and (
+        not isinstance(identity_protocol, str) or identity_protocol.upper() != "TCP"
+    ):
+        raise ValueError("only TCP public identities are supported by the current P4 prototype")
+
+    try:
+        public_ip = str(ipaddress.ip_address(public_ip))
+        internal_ip = str(ipaddress.ip_address(internal_ip))
+    except (TypeError, ValueError) as error:
+        raise ValueError("mapping generation contains invalid IP address fields") from error
+
+    for name, value in (("public_port", public_port), ("internal_port", internal_port)):
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 65535:
+            raise ValueError(f"mapping generation contains an invalid {name}")
+
+    return GatewayMappingGeneration(
+        service_id=service_id,
+        generation_id=generation_id,
+        identity=PublicIdentity(public_ip, public_port, "TCP"),
+        internal_endpoint=InternalEndpoint(internal_ip, internal_port),
+        protocol="TCP",
+    )
 
 
 def _exact_match(p4runtime_pb2, field, value):
@@ -315,7 +385,7 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
             self._pipeline_configured = True
         return p4runtime_pb2
 
-    def _mapping_entities(self, generation):
+    def _mapping_entities(self, generation: GatewayMappingGeneration):
         p4runtime_pb2 = self._bindings[3]
         forward_names = (
             "meta.active_generation_id",
@@ -495,32 +565,47 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
             _print_rpc_error(f"P4Runtime {operation}", error)
         return GatewayResult.failure(operation, "P4RUNTIME_ERROR", str(error), generation_id)
 
-    def apply_mapping(self, generation: MappingGeneration) -> GatewayResult:
+    def apply_mapping(self, generation) -> GatewayResult:
         """Install one mapping directly without changing the selector."""
 
-        if generation.protocol.upper() != "TCP":
-            return GatewayResult.failure(
-                "apply_mapping", "UNSUPPORTED_PROTOCOL", "Current P4 pipeline supports TCP only", generation.generation_id
-            )
         try:
-            self._install_entries(generation)
-            self._generations[(generation.service_id, generation.generation_id)] = generation
-            return GatewayResult.ok("apply_mapping", "mapping entries installed", generation.generation_id)
+            normalized = normalize_mapping_generation(generation)
+            self._install_entries(normalized)
+            key = (normalized.service_id, normalized.generation_id)
+            self._generations[key] = normalized
+            return GatewayResult.ok("apply_mapping", "mapping entries installed", normalized.generation_id)
         except Exception as error:
-            return self._failure("apply_mapping", generation.generation_id, error)
+            if isinstance(error, ValueError):
+                return GatewayResult.failure(
+                    "apply_mapping",
+                    "INVALID_GENERATION",
+                    str(error),
+                    getattr(generation, "generation_id", None),
+                )
+            return self._failure("apply_mapping", getattr(generation, "generation_id", None), error)
 
-    def stage_mapping(self, generation: MappingGeneration) -> GatewayResult:
-        key = (generation.service_id, generation.generation_id)
-        if key in self._staged:
-            return GatewayResult.ok("stage_mapping", "mapping already staged", generation.generation_id)
+    def stage_mapping(self, generation) -> GatewayResult:
         try:
-            self._install_entries(generation)
-            self._generations[key] = generation
+            normalized = normalize_mapping_generation(generation)
+        except ValueError as error:
+            return GatewayResult.failure(
+                "stage_mapping",
+                "INVALID_GENERATION",
+                str(error),
+                getattr(generation, "generation_id", None),
+            )
+
+        key = (normalized.service_id, normalized.generation_id)
+        if key in self._staged:
+            return GatewayResult.ok("stage_mapping", "mapping already staged", normalized.generation_id)
+        try:
+            self._install_entries(normalized)
+            self._generations[key] = normalized
             self._staged.add(key)
             self._verified.discard(key)
-            return GatewayResult.ok("stage_mapping", "mapping entries staged", generation.generation_id)
+            return GatewayResult.ok("stage_mapping", "mapping entries staged", normalized.generation_id)
         except Exception as error:
-            return self._failure("stage_mapping", generation.generation_id, error)
+            return self._failure("stage_mapping", normalized.generation_id, error)
 
     def verify_staged(self, service_id: str, generation_id: int) -> GatewayResult:
         key = (service_id, generation_id)
