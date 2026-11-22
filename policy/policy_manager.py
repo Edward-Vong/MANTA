@@ -11,11 +11,11 @@ class PolicyManager:
   def request_interval_update(rotation_coordinator, requested_interval):
     """Should be called continuously, updates rotation interval over time."""
     
-    result = rotation_coordinator.request_rotation(requested_interval)
-    if result == "Interval changed":
+    feedback = rotation_coordinator.request_rotation(requested_interval)
+    if feedback == 1:
       print("Interval update successful")
       # Continue feedback loop
-    elif result == "Unable to change interval":
+    elif feedback == -1:
       print("Unable to update rotation interval at rotation coordinator")
       # Error reporting
 
@@ -36,6 +36,5 @@ class PolicyManager:
     self.request_interval_update(self.rotation_coordinator, self.interval)
 
   def get_network_status(self):
-    """Fetches network conditions/status message from the telemetry collector."""
-    
-    return self.telemetry_collector.run_telemetry()
+    """Fetches network conditions/status message from the telemetry collector."""    
+    return self.telemetry_collector.run_telemetry_analysis()

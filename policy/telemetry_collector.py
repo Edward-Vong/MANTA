@@ -30,7 +30,7 @@ class TelemetryCollector:
         self.policy_manager = policy_manager
         self.network = network_interface
 
-    def run_telemetry(self):
+    def run_telemetry_analysis(self):
         stats_json = self.fetch_network_stats()
         current_status = self.analyze_network(stats_json)
         return current_status
@@ -45,7 +45,7 @@ class TelemetryCollector:
     def analyze_network(stats):
         issues_identified = []
 
-        status = True
+        status = 1
 
         latency_issue = False
         packet_issue = False
@@ -72,7 +72,7 @@ class TelemetryCollector:
                 handoff_issue = True
 
         if (latency_issue or packet_issue or handoff_issue):
-            status = False
+            status = -1
         else:
             issues_identified.append("No network issues identified")
 
