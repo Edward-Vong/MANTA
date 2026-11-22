@@ -1,7 +1,7 @@
 import json
 
 class TelemetryCollector:
-    """Defines analysis algorithms for interpreting network statistics and sending summaries."""
+    """Defines analysis algorithms for interpreting network statistics and creating summaries."""
 
     emulation_data = json.loads({
       "source": "synthetic",
@@ -39,9 +39,41 @@ class TelemetryCollector:
     def fetch_network_stats(self):
         # Receive stats from network here
         # Should be the same JSON format as the telemetry emulator
-        # Currently just returns emulation data
+        # Currently just returns static emulation data
         return self.emulation_data
     
-    def analyze_network(json_obj):
-        # Large analysis of data goes here
-        return 0
+    def analyze_network(stats):
+        issues_identified = []
+
+        status = True
+
+        latency_issue = False
+        packet_issue = False
+        handoff_issue = False
+
+        for key, value in stats.items():
+            if key == "rtt_ms" and value > 80:
+                issues_identified.append("Average RTT over 90 ms")
+                latency_issue = True
+            elif key == "rtt_p95_ms" and value > 60:
+                issues_identified.append("95th percentile RTT over 60 ms")
+                latency_issue = True
+            elif key == "rtt_max_ms" and value > 300:
+                issues_identified.append("Max RTT over 300 ms")
+                latency_issue = True
+            elif key == "packet_loss_percent" and value > 5.0:
+                issues_identified.append("Packet loss greater than 5%")
+                packet_issue = True
+            elif key == "max_loss_burst_packets" and value > 5:
+                issues_identified.append("Max burst packet loss greater than 5")
+                packet_issue = True
+            elif key == "handoff_failure_percent" and value > 0.0:
+                issues_identified.append("Handoff failure detected")
+                handoff_issue = True
+
+        if (latency_issue or packet_issue or handoff_issue):
+            status = False
+        else:
+            issues_identified.append("No network issues identified")
+
+        return (status, issues_identified)
