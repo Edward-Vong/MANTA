@@ -38,4 +38,4 @@ class PolicyManager:
   def get_network_status(self):
     """Fetches network conditions/status message from the telemetry collector."""
     
-    return self.telemetry_collector.get_status()
+    return self.telemetry_collector.run_telemetry()
