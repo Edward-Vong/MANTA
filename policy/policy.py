@@ -1,31 +1,119 @@
 import uuid
+import json
 from dataclasses import dataclass
 from typing import Protocol
 
 from controller.rotator import RotationRequest
 
+"""
+This file contains both the Policy Manager and Telemetry Collector classes.
+
+Telemetry functionality is confined in TelemetryCollector and TelemetryObservation.
+"""
 
 @dataclass(frozen=True)
 class TelemetryObservation:
   """Telemetry result already classified for policy evaluation.
 
-  The provider supplies the decision and explanation. PolicyManager does not
+  The collector supplies the decision and explanation. PolicyManager does not
   interpret metrics or invent thresholds in this prototype.
   """
 
   rotation_requested: bool
   reason: str
+  explanation: list
 
   def __post_init__(self):
     if not isinstance(self.reason, str) or not self.reason.strip():
       raise ValueError("telemetry observations require a non-empty reason")
 
 
-class TelemetryProvider(Protocol):
-  """Source boundary for a future telemetry collector."""
+class TelemetryCollector(Protocol):
+  """
+  Source boundary for a telemetry collector.
+  Defines analysis algorithms for interpreting network statistics and creating summaries.
+  """
+
+  emulation_data = json.loads({
+    "source": "synthetic",
+    "collected_at": "2026-11-18T21:34:25.393484Z",
+    "scenario": "healthy",
+    "sample_id": 0,
+    "service_id": "web",
+    "window_start_seconds": 0,
+    "window_seconds": 10,
+    "rtt_ms": 3.08,
+    "rtt_p95_ms": 3.83,
+    "rtt_max_ms": 4.65,
+    "packets_sent": 985,
+    "packets_received": 983,
+    "packets_lost": 2,
+    "packet_loss_percent": 0.2,
+    "max_loss_burst_packets": 1,
+    "handoff_attempts": 1,
+    "handoff_failures": 0,
+    "handoff_failure_percent": 0.0
+  })
+  
+  def __init__(self, policy_manager, service):
+      """Connect this telemetry collector to a policy manager and service."""
+      
+      self.policy_manager = policy_manager
+      self.service = service
 
   def observe(self, service_id: str) -> TelemetryObservation:
-    """Return one already-classified observation for a service."""
+      """Return one already-classified observation for a service."""
+
+      # Collect and return stats from service here
+      # Should be the same JSON format as the telemetry emulator
+
+      observation = TelemetryObservation()
+
+      # Currently just returns static emulation data
+      service_network_stats = self.emulation_data
+
+      # Pass in empty observation, gets populated with reason for change and explanation list
+      return self.analyze_network(observation, service_network_stats)
+  
+  def analyze_network(observation, stats):
+      issues_identified = []
+
+      reason = "Network conditions good"
+
+      latency_issue = False
+      packet_issue = False
+      handoff_issue = False
+
+      for key, value in stats.items():
+          if key == "rtt_ms" and value > 80:
+              issues_identified.append("Average RTT over 90 ms")
+              latency_issue = True
+          elif key == "rtt_p95_ms" and value > 60:
+              issues_identified.append("95th percentile RTT over 60 ms")
+              latency_issue = True
+          elif key == "rtt_max_ms" and value > 300:
+              issues_identified.append("Max RTT over 300 ms")
+              latency_issue = True
+          elif key == "packet_loss_percent" and value > 5.0:
+              issues_identified.append("Packet loss greater than 5%")
+              packet_issue = True
+          elif key == "max_loss_burst_packets" and value > 5:
+              issues_identified.append("Max burst packet loss greater than 5")
+              packet_issue = True
+          elif key == "handoff_failure_percent" and value > 0.0:
+              issues_identified.append("Handoff failure detected")
+              handoff_issue = True
+
+      if (latency_issue or packet_issue or handoff_issue):
+          reason = "Poor network conditions, check explanation"
+      else:
+          issues_identified.append("No network issues identified")
+
+      observation.reason = reason
+      observation.explanation = issues_identified
+      observation.rotation_requested = True
+
+      return observation
 
 
 class PolicyManager:
@@ -65,32 +153,33 @@ class PolicyManager:
     """Turn one telemetry observation into a rotation decision."""
 
     if not isinstance(observation, TelemetryObservation):
-      raise TypeError("policy evaluation requires a TelemetryObservation")
+      raise TypeError("Policy changes requires a TelemetryObservation")
     if not observation.rotation_requested:
       return {
         "triggered": False,
         "service_id": service_id,
         "reason": observation.reason,
+        "explanation": observation.explanation,
       }
-    return await self._trigger_rotation(service_id, observation.reason, "telemetry")
+    return await self._trigger_rotation(service_id, observation.reason, "telemetry", observation.explanation)
 
-  async def run_with_telemetry(self, service_id, provider: TelemetryProvider):
-    """Fetch and evaluate one observation from an injected provider."""
+  async def run_with_telemetry(self, service_id, collector: TelemetryCollector):
+    """Fetch and evaluate one observation from a TelemetryCollector."""
 
-    observation = provider.observe(service_id)
+    observation = collector.observe(service_id)
     return await self.evaluate_observation(service_id, observation)
 
-  async def tick(self, service_id, elapsed, provider: TelemetryProvider | None = None):
+  async def tick(self, service_id, elapsed, collector: TelemetryCollector | None = None):
     """Run one deterministic scheduler tick.
 
-    With no provider, this is the interval scheduler and delegates to the
-    existing ``run_once`` fallback. When a provider is supplied, its explicit
+    With no collector, this is the interval scheduler and delegates to the
+    existing ``run_once`` fallback. When a collector is supplied, its explicit
     observation is evaluated instead; no telemetry thresholds are applied by
     the scheduler.
     """
 
-    if provider is not None:
-      return await self.run_with_telemetry(service_id, provider)
+    if collector is not None:
+      return await self.run_with_telemetry(service_id, collector)
     return await self.run_once(service_id, elapsed)
 
   def reset_schedule(self, service_id=None):
@@ -139,9 +228,9 @@ class PolicyManager:
       }
 
     self._elapsed[service_id] = 0
-    return await self._trigger_rotation(service_id, "configured_interval_elapsed", "interval")
+    return await self._trigger_rotation(service_id, "configured_interval_elapsed", "interval", ["No telemetry involved"])
 
-  async def _trigger_rotation(self, service_id, reason, policy_id):
+  async def _trigger_rotation(self, service_id, reason, policy_id, telemetry_explanation):
     request_id = f"policy-{uuid.uuid4().hex}"
     while request_id in self._issued_request_ids:
       request_id = f"policy-{uuid.uuid4().hex}"
@@ -151,6 +240,7 @@ class PolicyManager:
       service_id=service_id,
       policy_id=policy_id,
       reason=reason,
+      telemetry_explanation=telemetry_explanation
     )
 
     self._in_flight.add(service_id)
@@ -164,24 +254,3 @@ class PolicyManager:
       }
     finally:
       self._in_flight.remove(service_id)
-
-  def rotation_update(self):
-    """Fetches network conditions from telemetry, updates interval whether GOOD/BAD/NEUTRAL."""
-    
-    current_network_status = self.get_network_status()
-
-    if current_network_status == 1:
-      self.interval = self.interval - 1
-      print("Good network conditions, reducing interval")
-    elif current_network_status == -1:
-      self.interval = self.interval + 1
-      print("Poor network conditions, increasing interval")
-    elif current_network_status == 0:
-      print("Network conditions unclear, try next time")
-
-    return self.request_interval_update(self.interval)
-
-  def get_network_status(self):
-    """Fetches network conditions/status message from the telemetry collector."""
-    
-    return self.telemetry_collector.get_status()
