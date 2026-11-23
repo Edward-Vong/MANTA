@@ -130,6 +130,7 @@ class RotationRecord:
     cleanup_confirmed: bool = False
     overlap_until: float = 0
     error: str | None = None
+    gateway_staged: bool = False
 
     @property
     def finished(self):
@@ -213,7 +214,8 @@ class JsonStateStore:
                 state=RotationState(value["state"]),
                 committed=value["committed"],
                 cleanup_confirmed=value["cleanup_confirmed"],
-                overlap_until=value["overlap_until"], error=value["error"])
+                overlap_until=value["overlap_until"], error=value["error"],
+                gateway_staged=value.get("gateway_staged", False))
 
         return ControllerState(
             active={key: generation(value) for key, value in data["active"].items()},
@@ -325,6 +327,8 @@ class RotationCoordinator:
             self._allocate(record)
             new = record.next_generation
             await self._require(self.gateway.stage_mapping(new), "stage_failed")
+            record.gateway_staged = True
+            self._phase(record, RotationState.STAGING)
             await self._require(self.gateway.verify_staged(new), "verify_failed")
 
             self._phase(record, RotationState.NOTIFYING)
@@ -383,6 +387,7 @@ class RotationCoordinator:
     def _commit(self, record):
         self._state.active[record.request.service_id] = record.next_generation
         record.committed = True
+        record.gateway_staged = False
         record.overlap_until = self.clock() + self.config.overlap_ms / 1000
         record.error = None
 
@@ -439,10 +444,15 @@ class RotationCoordinator:
 
             if record.next_generation is not None:
                 if not record.cleanup_confirmed:
-                    await self._require(self.gateway.rollback_to(
-                        record.current_generation), "rollback_failed")
-                    await self._require(self.gateway.retire_generation(
-                        record.next_generation), "staged_cleanup_failed")
+                    if record.gateway_staged:
+                        await self._require(self.gateway.rollback_to(
+                            record.current_generation), "rollback_failed")
+                        # rollback_to is authoritative for staged cleanup on
+                        # gateways that support it. Keep the legacy cleanup
+                        # call for adapters that remove staged entries there.
+                        await self._call(self.gateway.retire_generation(
+                            record.next_generation))
+                        record.gateway_staged = False
                     record.cleanup_confirmed = True
 
                     self._phase(record, RotationState.ROLLBACK)
