@@ -34,6 +34,7 @@ class TelemetryCollector(Protocol):
   Defines analysis algorithms for interpreting network statistics and creating summaries.
   """
 
+  # For test purposes, replace with any sample data record from /telemetry_data
   emulation_data = json.loads({
     "source": "synthetic",
     "collected_at": "2026-11-18T21:34:25.393484Z",
@@ -70,6 +71,7 @@ class TelemetryCollector(Protocol):
       observation = TelemetryObservation()
 
       # Currently just returns static emulation data
+      # MUST REPLACE WITH SERVICE INTEGRATION
       service_network_stats = self.emulation_data
 
       # Pass in empty observation, gets populated with reason for change and explanation list
@@ -114,7 +116,6 @@ class TelemetryCollector(Protocol):
       observation.rotation_requested = True
 
       return observation
-
 
 class PolicyManager:
   """Defines rotation interval algorithms and telemetry feedback loop."""
