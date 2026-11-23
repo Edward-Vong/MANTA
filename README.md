@@ -1,5 +1,5 @@
 # MANTA
-MANTA: Moving-target Adaptive Network Transformation Architecture
+MANTA: Moving-target Architecture for Network Threat Avoidance
 
 ## Architecture
 
