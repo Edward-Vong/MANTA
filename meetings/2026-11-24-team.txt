@@ -1,0 +1,30 @@
+Meeting Type: Team
+Date: 2026-11-24
+Start–End Time: 1-1:30pm
+Location/Mode: Discord
+Attendees:
+- Vicki Liang
+- Owen Semersky
+- Edward Vong
+
+1) Accomplished Since Last Meeting
+- Front-Back pipeline completed
+- Rotation-pipeline integration completed
+- telemetry and policy integrated
+
+2) Accomplished During This Meeting
+- progress update
+
+3) Issues / Blockers
+- N/A
+
+4) Action Items
+- Action: Implement/Integrated Demo | Owner: All | Due: Nov 27th
+- Action: Integration Testing/Debuging Demo | Owner: All | Due: Dec 3rd
+- Action: Slides for Demo | Owner: All | Due: Dec 4th
+- Action: First Report | Owner: All | Due: Dec 4th
+
+5) Plans / Goals for Next Meeting
+- Policy and Rotation coordinator hooked-up
+    - REST API: Owen commands and Edward Endpoints
+- Demo Progress
