@@ -296,10 +296,13 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
         p4runtime_address=DEFAULT_P4RUNTIME_ADDRESS,
         p4info_path=DEFAULT_P4INFO_PATH,
         bmv2_json_path=DEFAULT_BMV2_JSON_PATH,
+        *, backend_macs=None, trace_writes=True,
     ):
         self.p4runtime_address = p4runtime_address
         self.p4info_path = Path(p4info_path)
         self.bmv2_json_path = Path(bmv2_json_path)
+        self.backend_macs = None if backend_macs is None else dict(backend_macs)
+        self.trace_writes = trace_writes
         self._bindings = None
         self._p4info = None
         self._session = None
@@ -413,11 +416,14 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
             _bytes_ip(generation.internal_endpoint.internal_ip),
             _bytes_port(generation.internal_endpoint.internal_port),
         )
+        backend_mac = SERVER_MAC
+        if self.backend_macs is not None:
+            backend_mac = self.backend_macs[generation.internal_endpoint.internal_ip]
         forward_parameters = (
             ("internal_ip", _bytes_ip(generation.internal_endpoint.internal_ip)),
             ("internal_port", _bytes_port(generation.internal_endpoint.internal_port)),
             ("source_mac", _bytes_mac(INTERNAL_GATEWAY_MAC)),
-            ("destination_mac", _bytes_mac(SERVER_MAC)),
+            ("destination_mac", _bytes_mac(backend_mac)),
         )
         reverse_parameters = (
             ("public_ip", _bytes_ip(generation.identity.public_ip)),
@@ -507,16 +513,8 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
         update = p4runtime_pb2.Update(type=update_type)
         update.entity.CopyFrom(entity)
         request.updates.append(update)
-        _print_update_details(
-            text_format,
-            label,
-            table,
-            action,
-            names,
-            values,
-            parameters,
-            request,
-        )
+        if self.trace_writes:
+            _print_update_details(text_format, label, table, action, names, values, parameters, request)
         self._session.stub.Write(request)
 
     def _install_entries(self, generation, allow_existing=True):
@@ -530,7 +528,8 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
             update = p4runtime_pb2.Update(type=p4runtime_pb2.Update.INSERT)
             update.entity.CopyFrom(entity)
             request.updates.append(update)
-            _print_update_details(text_format, label, table, action, names, values, parameters, request)
+            if self.trace_writes:
+                _print_update_details(text_format, label, table, action, names, values, parameters, request)
             try:
                 self._session.stub.Write(request)
             except Exception as error:
@@ -590,7 +589,10 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
 
     def _failure(self, operation, generation_id, error):
         if hasattr(error, "code") and callable(error.code):
-            _print_rpc_error(f"P4Runtime {operation}", error)
+            if self.trace_writes:
+                _print_rpc_error(f"P4Runtime {operation}", error)
+            else:
+                print(f"The gateway reported {error.details() or error.code()}.", file=sys.stderr)
         return GatewayResult.failure(operation, "P4RUNTIME_ERROR", str(error), generation_id)
 
     def apply_mapping(self, generation) -> GatewayResult:

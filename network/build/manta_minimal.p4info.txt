@@ -1,0 +1,175 @@
+# proto-file: p4/config/v1/p4info.proto
+# proto-message: p4.config.v1.P4Info
+
+pkg_info {
+  arch: "v1model"
+}
+tables {
+  preamble {
+    id: 35733013
+    name: "IngressImpl.active_generation_selector"
+    alias: "active_generation_selector"
+  }
+  match_fields {
+    id: 1
+    name: "standard_metadata.ingress_port"
+    bitwidth: 9
+    match_type: EXACT
+  }
+  action_refs {
+    id: 33404981
+  }
+  initial_default_action {
+    action_id: 33404981
+    arguments {
+      param_id: 1
+      value: "\000\000\000\001"
+    }
+  }
+  size: 2
+}
+tables {
+  preamble {
+    id: 40774806
+    name: "IngressImpl.public_identity_forward"
+    alias: "public_identity_forward"
+  }
+  match_fields {
+    id: 1
+    name: "meta.active_generation_id"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "hdr.ipv4.dst_addr"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 3
+    name: "hdr.tcp.dst_port"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 33157340
+  }
+  action_refs {
+    id: 17676690
+  }
+  initial_default_action {
+    action_id: 17676690
+  }
+  size: 16
+}
+tables {
+  preamble {
+    id: 50024359
+    name: "IngressImpl.internal_endpoint_reverse"
+    alias: "internal_endpoint_reverse"
+  }
+  match_fields {
+    id: 1
+    name: "meta.active_generation_id"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "hdr.ipv4.src_addr"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 3
+    name: "hdr.tcp.src_port"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 19608204
+  }
+  action_refs {
+    id: 17676690
+  }
+  initial_default_action {
+    action_id: 17676690
+  }
+  size: 16
+}
+actions {
+  preamble {
+    id: 33404981
+    name: "IngressImpl.set_active_generation"
+    alias: "set_active_generation"
+  }
+  params {
+    id: 1
+    name: "generation_id"
+    bitwidth: 32
+  }
+}
+actions {
+  preamble {
+    id: 17676690
+    name: "IngressImpl.drop"
+    alias: "drop"
+  }
+}
+actions {
+  preamble {
+    id: 33157340
+    name: "IngressImpl.set_forward_mapping"
+    alias: "set_forward_mapping"
+  }
+  params {
+    id: 1
+    name: "internal_ip"
+    bitwidth: 32
+  }
+  params {
+    id: 2
+    name: "internal_port"
+    bitwidth: 16
+  }
+  params {
+    id: 3
+    name: "source_mac"
+    bitwidth: 48
+  }
+  params {
+    id: 4
+    name: "destination_mac"
+    bitwidth: 48
+  }
+}
+actions {
+  preamble {
+    id: 19608204
+    name: "IngressImpl.set_reverse_mapping"
+    alias: "set_reverse_mapping"
+  }
+  params {
+    id: 1
+    name: "public_ip"
+    bitwidth: 32
+  }
+  params {
+    id: 2
+    name: "public_port"
+    bitwidth: 16
+  }
+  params {
+    id: 3
+    name: "source_mac"
+    bitwidth: 48
+  }
+  params {
+    id: 4
+    name: "destination_mac"
+    bitwidth: 48
+  }
+}
+type_info {
+}

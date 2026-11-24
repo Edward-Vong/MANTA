@@ -38,6 +38,18 @@ When required by the installed protobuf bindings, set:
 export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 ```
 
+## Python cache files
+
+Python creates `__pycache__` folders when it imports modules during runs and tests. Git ignores these folders and compiled `.pyc` and `.pyo` files throughout the repository. You can leave them in place.
+
+To clear existing caches, first preview the paths from the repository root.
+
+```bash
+git clean -ndX -- ':(glob)**/__pycache__' ':(glob)**/*.pyc' ':(glob)**/*.pyo'
+```
+
+After reviewing the preview, replace `-ndX` with `-fdX` to remove those paths. To keep new caches out of the checkout during a VM demo, add `PYTHONDONTWRITEBYTECODE=1` immediately after `sudo` in the launch command. The demo's Python subprocesses inherit that setting.
+
 ## Clean-start demo
 
 From the repository root in the VM:
@@ -96,7 +108,46 @@ The adapter exposes the coordinator-facing asynchronous operations:
 
 It translates them to the synchronous, service-scoped `GatewayRuleInterface` implemented by `Bmv2P4RuntimeGateway`.
 
-There is no committed coordinator rotation runner. The current runtime rotation verification uses an inline Python harness with the adapter. A coordinator teammate should run that harness in a second VM terminal after starting BMv2, then test the new identity and confirm the retired identity times out from the Mininet CLI.
+### Watch a rotation in the VM
+
+Open two terminals in the Ubuntu VM. In the first, start watching the rotator log.
+
+```bash
+touch "$HOME/manta-rotator.log"
+tail -n 0 -F "$HOME/manta-rotator.log"
+```
+
+In the second, run the following from the repository root with the interactive topology stopped.
+
+```bash
+bash network/build_p4.sh
+sudo BMV2_SWITCH_BIN=/home/manta/opt/p4/bin/simple_switch_grpc \
+  python3 -m demos.mininet_rotation --p4runtime-python "$HOME/venvs/p4runtime/bin/python" \
+  2>>"$HOME/manta-rotator.log"
+```
+
+This starts an HTTP process in each of four protected Mininet hosts. The coordinator rotates through the hosts in round-robin order. Each generation selects a public address and a backend. BMv2 forwards to the selected backend's IP and MAC through rules installed using `AsyncBmv2CoordinatorAdapter`.
+
+| Generation | Client connects to | VPS that must respond |
+|---|---|---|
+| 1 | `10.0.0.100:8080` | `server` at `10.0.1.2:80` |
+| 2 | `10.0.0.101:8080` | `vps2` at `10.0.1.3:80` |
+| 3 | `10.0.0.100:8080` | `vps3` at `10.0.1.4:80` |
+| 4 | `10.0.0.101:8080` | `vps4` at `10.0.1.5:80` |
+| 5 | `10.0.0.100:8080` | `server` at `10.0.1.2:80` |
+
+Each VPS serves a distinct per-run marker. In the watch terminal, a switch looks like this (timestamps omitted).
+
+```text
+Switch 1 of 4. Moving traffic from server to vps2.
+The gateway has checked the new route. The client is ready to use 10.0.0.101:8080.
+Confirmed. vps2 answered the client at 10.0.0.101:8080.
+The old address 10.0.0.100:8080 timed out as expected.
+```
+
+The confirmation appears when the client receives the expected VPS's marker. The timeout is a successful check that the previous public address has stopped responding. The final `PASS` appears after all four switches and their checks. If a check fails, the demo prints the reason and exits with an error. For troubleshooting, add `--debug` to the demo command to include request IDs and coordinator state in the log and raw P4Runtime writes in the launch terminal.
+
+The demo prepares the new neighbor entry inside the client's namespace. Authenticated client notifications are still pending. The topology shuts down after the checks and the log remains available.
 
 Expected rotation results are:
 

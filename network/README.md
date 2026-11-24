@@ -12,7 +12,7 @@ The network directory contains the original OVS practice topology and the curren
 
 - [bmv2_topology.py](bmv2_topology.py): start the BMv2-oriented Mininet topology.
 - Public hosts are `client` (`10.0.0.1`) and `scanner` (`10.0.0.3`).
-- The protected server is `server` (`10.0.1.2`).
+- Four protected VPS hosts connect to the internal switch in rotation order — `server` (`10.0.1.2`), `vps2` (`10.0.1.3`), `vps3` (`10.0.1.4`), and `vps4` (`10.0.1.5`). Each has its own network namespace, virtual Ethernet interface, and MAC address. The static mapping uses `server`.
 - `bmv2_public` is BMv2 port 1.
 - `bmv2_internal` is BMv2 port 2.
 - P4Runtime listens on `127.0.0.1:9559`.
@@ -26,6 +26,8 @@ sudo BMV2_SWITCH_BIN=/home/manta/opt/p4/bin/simple_switch_grpc \
 ```
 
 The topology starts BMv2 after its Mininet interfaces exist and cleans up the BMv2 process during shutdown.
+
+Use the [verbose rotation demo](../README.md#watch-a-rotation-in-the-vm) to exercise the protected HTTP service from the Mininet client and follow the coordinator in a second terminal.
 
 ## P4 artifacts and static mapping
 

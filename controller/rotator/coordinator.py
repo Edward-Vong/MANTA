@@ -1,245 +1,20 @@
+"""Rotation orchestration, rollback, and recovery."""
+
 import asyncio
-import json
 import logging
-import os
-import tempfile
 from collections import Counter
-from dataclasses import asdict, dataclass, field
-from enum import Enum
-from ipaddress import ip_address
-from pathlib import Path
 from time import time
 
-
-@dataclass(frozen=True)
-class PublicIdentity:
-    public_ip: str
-    public_port: int
-    protocol: str = "tcp"
-
-    def __post_init__(self):
-        ip_address(self.public_ip)
-
-        if not 1 <= self.public_port <= 65535:
-            raise ValueError("Port must be between 1 and 65535")
-
-        if self.protocol not in ("tcp", "udp"):
-            raise ValueError("Protocol must be tcp or udp")
-
-
-class IdentityPool:
-    """Ten virtual service addresses for the local simulation."""
-
-    def __init__(self, public_port=8080, protocol="tcp"):
-        self.identities = tuple(
-            PublicIdentity(f"10.0.0.{number}", public_port, protocol)
-            for number in range(100, 110)
-        )
-        self._leases = {}
-
-    def allocate(self, lease_id, service_id, protocol):
-        existing = self._leases.get(lease_id)
-
-        if existing is not None:
-            if existing.protocol != protocol:
-                raise ValueError("Lease protocol does not match")
-
-            return existing
-
-        for identity in self.identities:
-            if identity.protocol == protocol and identity not in self._leases.values():
-                self.reserve(identity, lease_id)
-
-                return identity
-
-        raise RuntimeError(f"No available {protocol} identities")
-
-    def reserve(self, identity, lease_id):
-        if not lease_id or identity not in self.identities:
-            raise ValueError("A lease ID and an identity from this pool are required")
-
-        existing = self._leases.get(lease_id)
-
-        if existing == identity:
-            return
-
-        if existing is not None or identity in self._leases.values():
-            raise ValueError("Lease or identity is already reserved")
-
-        self._leases[lease_id] = identity
-
-    def release(self, identity, lease_id):
-        if self._leases.get(lease_id) == identity:
-            del self._leases[lease_id]
-
-
-@dataclass(frozen=True)
-class MappingGeneration:
-    service_id: str
-    generation_id: int
-    identity: PublicIdentity
-    internal_endpoint: PublicIdentity
-
-    def __post_init__(self):
-        if not self.service_id.strip() or self.generation_id < 1:
-            raise ValueError("A service and positive generation ID are required")
-
-        if self.identity.protocol != self.internal_endpoint.protocol:
-            raise ValueError("Public and internal protocols must match")
-
-    @property
-    def lease_id(self):
-        return f"{self.service_id}:{self.generation_id}"
-
-
-@dataclass(frozen=True)
-class RotationRequest:
-    request_id: str
-    service_id: str
-    policy_id: str = "manual"
-    reason: str = "manual"
-    requested_at: float = field(default_factory=time)
-
-    def __post_init__(self):
-        if not all(value.strip() for value in
-                   (self.request_id, self.service_id, self.policy_id, self.reason)):
-            raise ValueError("Request fields cannot be empty")
-
-
-class RotationState(str, Enum):
-    ACCEPTED = "accepted"
-    STAGING = "staging"
-    NOTIFYING = "notifying"
-    ACTIVATING = "activating"
-    RETIRING = "retiring"
-    ROLLBACK = "rollback"
-    RECOVERY_REQUIRED = "recovery_required"
-    COMPLETE = "complete"
-    FAILED = "failed"
-    REJECTED = "rejected"
-
-
-@dataclass
-class RotationRecord:
-    request: RotationRequest
-    current_generation: MappingGeneration
-    generation_id: int
-    next_generation: MappingGeneration | None = None
-    state: RotationState = RotationState.ACCEPTED
-    committed: bool = False
-    cleanup_confirmed: bool = False
-    overlap_until: float = 0
-    error: str | None = None
-    gateway_staged: bool = False
-
-    @property
-    def finished(self):
-        return self.state in (RotationState.COMPLETE, RotationState.FAILED)
-
-
-@dataclass(frozen=True)
-class HandoffPlan:
-    request_id: str
-    service_id: str
-    old_generation_id: int
-    new_generation_id: int
-    next_identity: PublicIdentity
-    overlap_ms: int
-
-
-@dataclass(frozen=True)
-class RotationResult:
-    request_id: str
-    accepted: bool
-    state: RotationState
-    error: str | None = None
-
-
-@dataclass(frozen=True)
-class RotationConfig:
-    overlap_ms: int = 2000
-    retire_retry_ms: int = 500
-    cleanup_attempts: int = 3
-    operation_timeout_ms: int = 5000
-    require_client_ack: bool = True
-
-    def __post_init__(self):
-        if self.overlap_ms < 0 or self.retire_retry_ms < 0:
-            raise ValueError("Delays cannot be negative")
-
-        if self.cleanup_attempts < 1 or self.operation_timeout_ms <= 0:
-            raise ValueError("Attempts and operation timeout must be positive")
-
-
-@dataclass
-class ControllerState:
-    active: dict[str, MappingGeneration] = field(default_factory=dict)
-    records: dict[str, RotationRecord] = field(default_factory=dict)
-    generation_ids: dict[str, int] = field(default_factory=dict)
-
-
-class JsonStateStore:
-    """Atomic journal for one controller process."""
-
-    def __init__(self, path, initial_generations=()):
-        self.path = Path(path)
-
-        if not self.path.exists():
-            self.save(ControllerState(
-                active={g.service_id: g for g in initial_generations}))
-
-    def load(self):
-        data = json.loads(self.path.read_text(encoding="utf-8"))
-
-        if data["version"] != 1:
-            raise ValueError("Unsupported rotation journal version")
-
-        def generation(value):
-            if value is None:
-                return None
-
-            return MappingGeneration(
-                value["service_id"], value["generation_id"],
-                PublicIdentity(**value["identity"]),
-                PublicIdentity(**value["internal_endpoint"]))
-
-        records = {}
-
-        for key, value in data["records"].items():
-            records[key] = RotationRecord(
-                request=RotationRequest(**value["request"]),
-                current_generation=generation(value["current_generation"]),
-                generation_id=value["generation_id"],
-                next_generation=generation(value["next_generation"]),
-                state=RotationState(value["state"]),
-                committed=value["committed"],
-                cleanup_confirmed=value["cleanup_confirmed"],
-                overlap_until=value["overlap_until"], error=value["error"],
-                gateway_staged=value.get("gateway_staged", False))
-
-        return ControllerState(
-            active={key: generation(value) for key, value in data["active"].items()},
-            records=records, generation_ids=data["generation_ids"])
-
-    def save(self, state):
-        data = json.dumps({"version": 1, **asdict(state)}, indent=2)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp")
-
-        try:
-            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-                stream.write(data)
-                stream.flush()
-                os.fsync(stream.fileno())
-
-            os.replace(temporary, self.path)
-        finally:
-            if os.path.exists(temporary):
-                os.unlink(temporary)
-
-
-class PersistenceError(RuntimeError):
-    pass
+from .handoff import HandoffPlan
+from .journal import PersistenceError
+from .models import (
+    MappingGeneration,
+    RotationConfig,
+    RotationRecord,
+    RotationRequest,
+    RotationResult,
+    RotationState,
+)
 
 
 class OperationFailed(RuntimeError):
@@ -254,18 +29,24 @@ class RotationCoordinator:
     def __init__(self, identity_pool, gateway,
                  handoff, state_store,
                  config: RotationConfig | None = None, *, clock=time,
-                 sleep=asyncio.sleep):
+                 sleep=asyncio.sleep, service_backends=None):
         self.identity_pool = identity_pool
         self.gateway = gateway
         self.handoff = handoff
         self.state_store = state_store
+        self.service_backends = {
+            service: tuple(endpoints) for service, endpoints in (service_backends or {}).items()
+        }
+        for service, endpoints in self.service_backends.items():
+            if not endpoints or len(set(endpoints)) != len(endpoints):
+                raise ValueError(f"Expected a nonempty list of distinct backends for {service}")
 
         self.config = config or RotationConfig()
         self.clock = clock
         self.sleep = sleep
 
         self.counters = Counter()
-        self.log = logging.getLogger(__name__)
+        self.log = logging.getLogger(__package__)
 
         self._state = state_store.load()
         self._tasks = {}
@@ -330,6 +111,7 @@ class RotationCoordinator:
             record.gateway_staged = True
             self._phase(record, RotationState.STAGING)
             await self._require(self.gateway.verify_staged(new), "verify_failed")
+            self.log.info("Verified staged generation %s for %s", new.generation_id, new.service_id)
 
             self._phase(record, RotationState.NOTIFYING)
             plan = HandoffPlan(
@@ -361,6 +143,13 @@ class RotationCoordinator:
 
     def _allocate(self, record):
         current = record.current_generation
+        endpoint = current.internal_endpoint
+        backends = self.service_backends.get(current.service_id)
+        if backends:
+            index = backends.index(endpoint)
+            endpoint = backends[(index + 1) % len(backends)]
+            if endpoint.protocol != current.identity.protocol:
+                raise ValueError("Backend protocol must match the public identity")
         identity = self.identity_pool.allocate(
             f"{current.service_id}:{record.generation_id}",
             current.service_id, current.identity.protocol)
@@ -380,7 +169,11 @@ class RotationCoordinator:
 
         record.next_generation = MappingGeneration(
             current.service_id, record.generation_id, identity,
-            current.internal_endpoint)
+            endpoint)
+
+        self.log.info("Selected backend %s:%s -> %s:%s for %s generation %s",
+                      current.internal_endpoint.public_ip, current.internal_endpoint.public_port,
+                      endpoint.public_ip, endpoint.public_port, current.service_id, record.generation_id)
 
         self._phase(record, RotationState.STAGING)
 
@@ -479,6 +272,7 @@ class RotationCoordinator:
             self._state = self.state_store.load()
             self._tasks.clear()
             pending = [r for r in self._state.records.values() if not r.finished]
+            self.log.info("Recovering coordinator with %d pending rotations", len(pending))
 
             for generation in self._state.active.values():
                 self.identity_pool.reserve(generation.identity, generation.lease_id)
@@ -502,6 +296,7 @@ class RotationCoordinator:
                 await self._recover_record(record)
 
             self._ready = True
+            self.log.info("Coordinator ready for rotation requests")
 
             return [self._result(record) for record in pending]
         finally:
@@ -576,15 +371,29 @@ class RotationCoordinator:
             self.state_store.save(self._state)
         except Exception as error:
             self._ready = False
+            self.log.exception("Could not persist %s for request %s", state.value,
+                               record.request.request_id)
             raise PersistenceError("journal_write_failed") from error
 
         self.counters[state.value] += 1
-        self.log.info("rotation_%s", state.value, extra={
+        elapsed_ms = max(0, self.clock() - record.request.requested_at) * 1000
+        old = record.current_generation
+        new = record.next_generation
+        target = (f"{new.identity.public_ip}:{new.identity.public_port}"
+                  if new else "pending allocation")
+        self.log.log(logging.WARNING if record.error else logging.INFO,
+                     "rotation_%s service=%s request=%s generation=%s->%s "
+                     "identity=%s:%s->%s staged=%s committed=%s cleanup_confirmed=%s "
+                     "elapsed_ms=%.0f error=%s",
+                     state.value, record.request.service_id, record.request.request_id,
+                     old.generation_id, record.generation_id, old.identity.public_ip,
+                     old.identity.public_port, target, record.gateway_staged, record.committed,
+                     record.cleanup_confirmed, elapsed_ms, record.error or "-", extra={
             "request_id": record.request.request_id,
             "service_id": record.request.service_id,
             "generation_id": record.generation_id,
             "error_code": record.error,
-            "elapsed_ms": max(0, self.clock() - record.request.requested_at) * 1000,
+            "elapsed_ms": elapsed_ms,
         })
 
     @staticmethod
@@ -592,23 +401,8 @@ class RotationCoordinator:
         return RotationResult(record.request.request_id, True,
                               record.state, record.error)
 
-    @staticmethod
-    def _reject(request, error):
+    def _reject(self, request, error):
+        self.log.warning("Rotation rejected service=%s request=%s error=%s",
+                         request.service_id, request.request_id, error)
         return RotationResult(request.request_id, False,
                               RotationState.REJECTED, error)
-
-
-class HandoffControl:
-    """Handle client updates and acknowledgements."""
-
-    def __init__(self, sessions, config):
-        self.sessions = sessions
-        self.config = config
-
-    async def prepare_and_wait(self, plan):
-        # TODO: Send an authenticated update and await an ACK with bounded retries.
-        raise NotImplementedError
-
-    def validate_ack(self, ack, plan, client_id):
-        # TODO: Verify authentication, ready status, and matching pending IDs.
-        raise NotImplementedError
