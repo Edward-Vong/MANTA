@@ -111,6 +111,48 @@ class RotationTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             self.pool.reserve(self.old.identity, "another-owner")
 
+    async def test_vps_rotation_retries_same_backend_and_cycles_after_recovery(self):
+        first = self.old.internal_endpoint
+        second = PublicIdentity("10.0.0.4", 80)
+        third = PublicIdentity("10.0.0.5", 80)
+        fourth = PublicIdentity("10.0.0.6", 80)
+        endpoints = {"web": (first, second, third, fourth)}
+        await self.rotator.close()
+
+        async def start_controller():
+            coordinator = RotationCoordinator(
+                IdentityPool(), self.gateway, self.handoff, self.store,
+                RotationConfig(overlap_ms=0), service_backends=endpoints,
+            )
+            self.addAsyncCleanup(coordinator.close)
+            await coordinator.recover()
+            return coordinator
+
+        coordinator = await start_controller()
+        self.handoff.prepare_and_wait.return_value = False
+        failed = await coordinator.rotate(RotationRequest("failed", "web"))
+        self.assertEqual(failed.state, RotationState.FAILED)
+        self.assertEqual(self.store.load().active["web"], self.old)
+        self.assertEqual(self.gateway.stage_mapping.await_args.args[0].internal_endpoint, second)
+
+        self.handoff.prepare_and_wait.return_value = True
+        switched = await coordinator.rotate(RotationRequest("switch", "web"))
+        self.assertEqual(switched.state, RotationState.COMPLETE)
+        active = self.store.load().active["web"]
+        self.assertEqual(active.internal_endpoint, second)
+        self.gateway.activate_mapping.assert_awaited_with(active, self.old)
+
+        await coordinator.close()
+        self.gateway.active_generation_id.return_value = active.generation_id
+        restarted = await start_controller()
+        for endpoint in (third, fourth, first):
+            previous = active
+            result = await restarted.rotate(RotationRequest(f"switch-{endpoint.public_ip}", "web"))
+            self.assertEqual(result.state, RotationState.COMPLETE)
+            active = self.store.load().active["web"]
+            self.assertEqual(active.internal_endpoint, endpoint)
+            self.gateway.retire_generation.assert_awaited_with(previous)
+
 
 if __name__ == "__main__":
     unittest.main()

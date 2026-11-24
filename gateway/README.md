@@ -44,7 +44,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 "$HOME/venvs/p4runtime/bin/python" network/install_static_mapping.py
 ```
 
-The current coordinator rotation check is an inline Python harness; there is no committed rotation runner. The expected lifecycle is:
+For a complete rotation on a fresh topology, follow [Watch a rotation in the VM](../README.md#watch-a-rotation-in-the-vm). That runner installs its initial generation and performs the rotation through the same asynchronous adapter. The expected lifecycle is:
 
 ```text
 stage → verify → handoff → activate → retire

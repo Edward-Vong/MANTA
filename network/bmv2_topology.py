@@ -6,10 +6,12 @@ interface placeholder: its two named interfaces identify the BMv2 public and
 internal ports.
 """
 
+import argparse
 import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -32,6 +34,12 @@ INTERNAL_GATEWAY_MAC = "02:00:00:00:01:02"
 CLIENT_MAC = "02:00:00:00:00:01"
 SCANNER_MAC = "02:00:00:00:00:03"
 SERVER_MAC = "02:00:00:00:00:02"
+VPS_HOSTS = (
+    ("server", "10.0.1.2/24", SERVER_MAC),
+    ("vps2", "10.0.1.3/24", "02:00:00:00:00:04"),
+    ("vps3", "10.0.1.4/24", "02:00:00:00:00:05"),
+    ("vps4", "10.0.1.5/24", "02:00:00:00:00:06"),
+)
 BMV2_GRPC_ADDRESS = "127.0.0.1:9559"
 BMV2_CPU_PORT = "3"
 BMV2_PID_FILE = Path("/tmp/manta-simple-switch-grpc.pid")
@@ -184,7 +192,6 @@ class Bmv2MantaTopo(Topo):
 
         client = self.addHost("client", ip="10.0.0.1/24", mac=CLIENT_MAC)
         scanner = self.addHost("scanner", ip="10.0.0.3/24", mac=SCANNER_MAC)
-        server = self.addHost("server", ip="10.0.1.2/24", mac=SERVER_MAC)
         bmv2gw = self.addSwitch(
             "bmv2gw",
             cls=LinuxBridge,
@@ -210,7 +217,9 @@ class Bmv2MantaTopo(Topo):
             port2=1,
             intfName1=INTERNAL_GATEWAY_INTF,
         )
-        self.addLink(server, intside, port2=2)
+        for port, (name, cidr, mac) in enumerate(VPS_HOSTS, start=2):
+            host = self.addHost(name, ip=cidr, mac=mac)
+            self.addLink(host, intside, port2=port)
 
 
 def build_network():
@@ -228,11 +237,9 @@ def configure_static_smoke_path(net):
     """Install the prototype routes and static neighbour entries in hosts."""
 
     client = net["client"]
-    server = net["server"]
     client_intf = client.defaultIntf().name
-    server_intf = server.defaultIntf().name
 
-    commands = (
+    commands = [
         (
             client,
             f"ip route replace 10.0.1.0/24 via {PUBLIC_GATEWAY_IP} "
@@ -248,17 +255,15 @@ def configure_static_smoke_path(net):
             f"ip neigh replace {PUBLIC_IDENTITY_IP} lladdr {PUBLIC_GATEWAY_MAC} "
             f"nud permanent dev {client_intf}",
         ),
-        (
-            server,
-            f"ip route replace 10.0.0.0/24 via {INTERNAL_GATEWAY_IP} "
-            f"dev {server_intf}",
-        ),
-        (
-            server,
-            f"ip neigh replace {INTERNAL_GATEWAY_IP} lladdr {INTERNAL_GATEWAY_MAC} "
-            f"nud permanent dev {server_intf}",
-        ),
-    )
+    ]
+    for name, _, _ in VPS_HOSTS:
+        host = net[name]
+        intf = host.defaultIntf().name
+        commands.extend([
+            (host, f"ip route replace 10.0.0.0/24 via {INTERNAL_GATEWAY_IP} dev {intf}"),
+            (host, f"ip neigh replace {INTERNAL_GATEWAY_IP} lladdr {INTERNAL_GATEWAY_MAC} "
+                   f"nud permanent dev {intf}"),
+        ])
     for host, command in commands:
         output = host.cmd(command)
         if output.strip():
@@ -280,13 +285,26 @@ def stop_network(net, bmv2_process=None):
     net.stop()
 
 
-def run_network():
-    """Start the scaffold, expose the CLI, and clean up on exit."""
+def run_rotation_demo(net, p4runtime_python, *, debug=False):
+    """Forward the original VM command to the standalone demo."""
+    from demos.mininet_rotation import run_rotation_demo as run_demo
+
+    run_demo(net, p4runtime_python, debug=debug)
+
+
+def run_network(p4runtime_python=None, *, debug=False):
+    """Run the interactive topology or the HTTP rotation demo."""
 
     net = build_network()
     bmv2_process = None
     try:
         bmv2_process = start_network(net)
+        if p4runtime_python is not None:
+            try:
+                run_rotation_demo(net, p4runtime_python, debug=debug)
+            except subprocess.TimeoutExpired as error:
+                raise SystemExit(f"FAIL. The demo did not finish within {error.timeout} seconds.") from None
+            return
         info("\n*** BMv2 simple_switch_grpc is running with the minimal P4 pipeline.\n")
         info(
             "*** BMv2 ports: "
@@ -303,4 +321,14 @@ if __name__ == "__main__":
     if os.geteuid() != 0:
         raise SystemExit("Run inside the Linux VM: sudo python3 network/bmv2_topology.py")
     setLogLevel("info")
-    run_network()
+    parser = argparse.ArgumentParser(description=run_network.__doc__)
+    parser.add_argument(
+        "--rotation-demo", metavar="P4RUNTIME_PYTHON",
+        help="rotate the HTTP service through the VPS hosts using this Python for P4Runtime",
+    )
+    parser.add_argument("--debug", action="store_true",
+                        help="include coordinator state and P4Runtime writes during the demo")
+    args = parser.parse_args()
+    if args.rotation_demo and not __package__:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    run_network(args.rotation_demo, debug=args.debug)
