@@ -60,11 +60,11 @@ sudo BMV2_SWITCH_BIN=/home/manta/opt/p4/bin/simple_switch_grpc \
   python3 network/bmv2_topology.py
 ```
 
-In the Mininet CLI, start the protected HTTP service and configure the client neighbor:
+In the Mininet CLI, start the origin and the first VPS relay:
 
 ```text
 server python3 -m http.server 80 >/tmp/manta-http.log 2>&1 &
-client ip neigh replace 10.0.0.100 lladdr 02:00:00:00:01:01 nud permanent dev client-eth0
+vps1 python3 -m demos.vps_proxy 10.0.1.2 192.0.2.80 vps1 >/tmp/manta-vps1.log 2>&1 &
 ```
 
 In a second VM terminal, install generation 1:
@@ -126,28 +126,32 @@ sudo BMV2_SWITCH_BIN=/home/manta/opt/p4/bin/simple_switch_grpc \
   2>>"$HOME/manta-rotator.log"
 ```
 
-This starts an HTTP process in each of four protected Mininet hosts. The coordinator rotates through the hosts in round-robin order. Each generation selects a public address and a backend. BMv2 forwards to the selected backend's IP and MAC through rules installed using `AsyncBmv2CoordinatorAdapter`.
+The demo starts one origin (`server`) and four HTTP relays on separate site networks. The client uses the active public address. BMv2 selects a VPS, which forwards the request to the origin's HTTP service address. Each response carries a marker from the origin and a header added by the forwarding VPS.
 
-| Generation | Client connects to | VPS that must respond |
+| Generation | Client connects to | VPS forwarding to the origin |
 |---|---|---|
-| 1 | `10.0.0.100:8080` | `server` at `10.0.1.2:80` |
-| 2 | `10.0.0.101:8080` | `vps2` at `10.0.1.3:80` |
-| 3 | `10.0.0.100:8080` | `vps3` at `10.0.1.4:80` |
-| 4 | `10.0.0.101:8080` | `vps4` at `10.0.1.5:80` |
-| 5 | `10.0.0.100:8080` | `server` at `10.0.1.2:80` |
+| 1 | `10.0.0.100:8080` | `vps1` at `10.0.1.2:80` |
+| 2 | `10.0.0.101:8080` | `vps2` at `10.0.2.2:80` |
+| 3 | `10.0.0.100:8080` | `vps3` at `10.0.3.2:80` |
+| 4 | `10.0.0.101:8080` | `vps4` at `10.0.4.2:80` |
+| 5 | `10.0.0.100:8080` | `vps1` at `10.0.1.2:80` |
 
-Each VPS serves a distinct per-run marker. In the watch terminal, a switch looks like this (timestamps omitted).
+In the watch terminal, the first switch looks like this (timestamps omitted).
 
 ```text
-Switch 1 of 4. Moving traffic from server to vps2.
+Switch 1 of 4. Moving traffic from vps1 to vps2.
 The gateway has checked the new route. The client is ready to use 10.0.0.101:8080.
-Confirmed. vps2 answered the client at 10.0.0.101:8080.
+Confirmed. The origin answered through vps2 at 10.0.0.101:8080.
 The old address 10.0.0.100:8080 timed out as expected.
 ```
 
-The confirmation appears when the client receives the expected VPS's marker. The timeout is a successful check that the previous public address has stopped responding. The final `PASS` appears after all four switches and their checks. If a check fails, the demo prints the reason and exits with an error. For troubleshooting, add `--debug` to the demo command to include request IDs and coordinator state in the log and raw P4Runtime writes in the launch terminal.
+The confirmation appears when the client verifies both the origin's response and the expected VPS header. The timeout is a successful check that the previous public address has stopped responding. The final `PASS` appears after all four switches and their checks. If a check fails, the demo prints the reason and exits with an error. For troubleshooting, add `--debug` to the demo command to include request IDs and coordinator state in the log and raw P4Runtime writes in the launch terminal.
 
-The demo prepares the new neighbor entry inside the client's namespace. Authenticated client notifications are still pending. The topology shuts down after the checks and the log remains available.
+Before switching traffic, the coordinator sends the next public address to every registered client of the service. Each update and acknowledgment carries an HMAC-SHA-256 tag using that client's shared key. A fresh nonce binds the acknowledgment to the pending update. With acknowledgments required (the default), a missing client, an invalid reply, or an exhausted timeout prevents activation and triggers rollback.
+
+In the VM demo, a client process receives the update over a private pipe inside its Mininet network namespace. It verifies the update, installs a route to the public address through its local router, and reports whether preparation succeeded. The demo provisions a fresh key in its private temporary directory for each run and allows two attempts of up to two seconds each. Applications supply their own client sessions, transport, and keys to `HandoffControl`. The topology shuts down after the checks and the log remains available.
+
+Run the automated suite from the repository root with `python3 -m unittest discover -s tests -v`. The handoff tests exercise client preparation, authentication, retries, cancellation, and rollback without requiring Mininet.
 
 Expected rotation results are:
 

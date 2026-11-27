@@ -1,10 +1,13 @@
 """Run from the project root: python3 -m unittest discover -s tests -v"""
 
+import asyncio
+import secrets
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, call
 
+from controller.handoff import HandoffControl, HandoffSession, acknowledge, read_update
 from controller.rotator import (
     HandoffPlan,
     IdentityPool,
@@ -152,6 +155,33 @@ class RotationTests(unittest.IsolatedAsyncioTestCase):
             active = self.store.load().active["web"]
             self.assertEqual(active.internal_endpoint, endpoint)
             self.gateway.retire_generation.assert_awaited_with(previous)
+
+    async def test_activation_waits_for_authenticated_client_and_rejects_old_ack(self):
+        key = secrets.token_bytes(32)
+        received, release = asyncio.Event(), asyncio.Event()
+        replies = []
+
+        async def client(update):
+            read_update(update, key, "web", "client")
+            received.set()
+            await release.wait()
+            if not replies:
+                replies.append(acknowledge(update, key, ready=True))
+            return replies[0]
+
+        session = HandoffSession("web", "client", key, client)
+        self.rotator.handoff = HandoffControl([session], self.rotator.config)
+        await self.rotator.request_rotation(RotationRequest("first", "web"))
+        await asyncio.wait_for(received.wait(), 1)
+        self.gateway.activate_mapping.assert_not_awaited()
+        release.set()
+        self.assertEqual((await self.rotator.wait("first")).state, RotationState.COMPLETE)
+        active = self.store.load().active["web"]
+        failed = await self.rotator.rotate(RotationRequest("second", "web"))
+        self.assertEqual(failed.error, "handoff_failed")
+        self.assertEqual(self.store.load().active["web"], active)
+        self.gateway.activate_mapping.assert_awaited_once()
+        self.gateway.rollback_to.assert_awaited_once_with(active)
 
 
 if __name__ == "__main__":

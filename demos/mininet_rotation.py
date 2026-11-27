@@ -12,30 +12,37 @@ from uuid import uuid4
 
 
 def run_rotation_demo(net, p4runtime_python, *, debug=False):
-    """Start an independent HTTP process in each VPS and verify the handoffs."""
-    from network.bmv2_topology import PUBLIC_GATEWAY_MAC, PUBLIC_IDENTITY_IP, VPS_HOSTS
+    """Serve the probe at the origin and verify the forwarding VPS after each handoff."""
+    from network.bmv2_topology import CLIENT_ROUTER_IP, ORIGIN_SERVICE_IP, PUBLIC_IDENTITY_IP, VPS_HOSTS
 
     client = net["client"]
     with tempfile.TemporaryDirectory() as run_dir, ExitStack() as services:
+        origin = net["server"]
+        web_root = Path(run_dir, "origin")
+        web_root.mkdir()
+        (web_root / "probe.txt").write_text(uuid4().hex, encoding="ascii")
+        origin_service = origin.popen(
+            [sys.executable, "-m", "http.server", "80", "--bind", origin.IP(),
+             "--directory", str(web_root)], stdout=subprocess.DEVNULL, stderr=None if debug else sys.stdout,
+        )
+        services.callback(origin_service.wait)
+        services.callback(origin_service.terminate)
         backends = []
         for name, _, _ in VPS_HOSTS:
             host = net[name]
-            web_root = Path(run_dir, name)
-            web_root.mkdir()
-            marker = f"{name} {uuid4().hex}"
-            (web_root / "probe.txt").write_text(marker, encoding="ascii")
+            marker = uuid4().hex
             service = host.popen(
-                [sys.executable, "-m", "http.server", "80", "--bind", host.IP(),
-                 "--directory", str(web_root)], stdout=subprocess.DEVNULL,
+                [sys.executable, "-m", "demos.vps_proxy", host.IP(), ORIGIN_SERVICE_IP, marker],
+                cwd=str(Path(__file__).resolve().parents[1]), stdout=subprocess.DEVNULL,
                 stderr=None if debug else sys.stdout,
             )
             services.callback(service.wait)
             services.callback(service.terminate)
-            backends.append(dict(name=name, ip=host.IP(), mac=host.MAC(), marker=marker))
+            backends.append(dict(name=name, ip=host.IP(), marker=marker))
         Path(run_dir, "backends.json").write_text(json.dumps(backends), encoding="ascii")
         result = subprocess.run(
             [p4runtime_python, "-u", "-m", "demos.rotation_scenario", run_dir,
-             str(client.pid), client.defaultIntf().name, PUBLIC_GATEWAY_MAC, PUBLIC_IDENTITY_IP],
+             str(client.pid), client.defaultIntf().name, CLIENT_ROUTER_IP, PUBLIC_IDENTITY_IP],
             cwd=Path(__file__).resolve().parents[1],
             env={**os.environ, "PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION": "python",
                  "MANTA_ROTATION_DEBUG": "1" if debug else "0"},

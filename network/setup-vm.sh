@@ -41,7 +41,7 @@ printf '%s\n' \
     | sudo debconf-set-selections
 sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git curl build-essential python3-pip python3-venv python3-dev \
-    mininet openvswitch-switch iperf3 nmap tcpdump wireshark
+    mininet openvswitch-switch iptables iperf3 nmap tcpdump wireshark
 sudo systemctl enable --now openvswitch-switch
 
 echo "Installing Ryu in $venv..."

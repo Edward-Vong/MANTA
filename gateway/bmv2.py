@@ -25,8 +25,8 @@ ELECTION_ID_LOW = 1
 
 PUBLIC_GATEWAY_MAC = "02:00:00:00:01:01"
 INTERNAL_GATEWAY_MAC = "02:00:00:00:01:02"
-CLIENT_MAC = "02:00:00:00:00:01"
-SERVER_MAC = "02:00:00:00:00:02"
+PUBLIC_NEXT_HOP_MAC = "02:00:00:00:00:01"
+PRIVATE_NEXT_HOP_MAC = "02:00:00:00:00:02"
 
 
 def _load_p4runtime_bindings():
@@ -416,7 +416,7 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
             _bytes_ip(generation.internal_endpoint.internal_ip),
             _bytes_port(generation.internal_endpoint.internal_port),
         )
-        backend_mac = SERVER_MAC
+        backend_mac = PRIVATE_NEXT_HOP_MAC
         if self.backend_macs is not None:
             backend_mac = self.backend_macs[generation.internal_endpoint.internal_ip]
         forward_parameters = (
@@ -429,7 +429,7 @@ class Bmv2P4RuntimeGateway(GatewayRuleInterface):
             ("public_ip", _bytes_ip(generation.identity.public_ip)),
             ("public_port", _bytes_port(generation.identity.public_port)),
             ("source_mac", _bytes_mac(PUBLIC_GATEWAY_MAC)),
-            ("destination_mac", _bytes_mac(CLIENT_MAC)),
+            ("destination_mac", _bytes_mac(PUBLIC_NEXT_HOP_MAC)),
         )
         forward_action = self._actions["set_forward_mapping"]
         reverse_action = self._actions["set_reverse_mapping"]

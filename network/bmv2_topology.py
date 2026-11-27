@@ -1,12 +1,7 @@
-"""MANTA's BMv2-oriented Mininet topology scaffold.
-
-This entry point starts the minimal BMv2 pipeline but does not implement
-address translation or MANTA gateway behavior.  The ``bmv2gw`` switch is an
-interface placeholder: its two named interfaces identify the BMv2 public and
-internal ports.
-"""
+"""Routed Mininet sites connected through the MANTA BMv2 gateway."""
 
 import argparse
+from ipaddress import ip_interface
 import os
 import shutil
 import signal
@@ -18,7 +13,7 @@ from pathlib import Path
 from mininet.cli import CLI
 from mininet.log import info, setLogLevel
 from mininet.net import Mininet
-from mininet.nodelib import LinuxBridge
+from mininet.node import Switch
 from mininet.topo import Topo
 
 
@@ -26,20 +21,24 @@ PUBLIC_GATEWAY_PORT = 1
 INTERNAL_GATEWAY_PORT = 2
 PUBLIC_GATEWAY_INTF = "bmv2_public"
 INTERNAL_GATEWAY_INTF = "bmv2_internal"
-PUBLIC_GATEWAY_IP = "10.0.0.254"
-INTERNAL_GATEWAY_IP = "10.0.1.254"
+PUBLIC_GATEWAY_IP = "172.30.0.2"
+INTERNAL_GATEWAY_IP = "172.31.0.2"
 PUBLIC_IDENTITY_IP = "10.0.0.100"
 PUBLIC_GATEWAY_MAC = "02:00:00:00:01:01"
 INTERNAL_GATEWAY_MAC = "02:00:00:00:01:02"
-CLIENT_MAC = "02:00:00:00:00:01"
-SCANNER_MAC = "02:00:00:00:00:03"
-SERVER_MAC = "02:00:00:00:00:02"
+# These are the Ethernet next hops expected by the existing two-port P4 pipeline.
+PUBLIC_TRANSIT_MAC = "02:00:00:00:00:01"
+PRIVATE_TRANSIT_MAC = "02:00:00:00:00:02"
+PUBLIC_SITES = (("client", "10.10.1.2/24"), ("scanner", "10.10.2.2/24"))
 VPS_HOSTS = (
-    ("server", "10.0.1.2/24", SERVER_MAC),
-    ("vps2", "10.0.1.3/24", "02:00:00:00:00:04"),
-    ("vps3", "10.0.1.4/24", "02:00:00:00:00:05"),
-    ("vps4", "10.0.1.5/24", "02:00:00:00:00:06"),
+    ("vps1", "10.0.1.2/24", "02:00:00:00:02:01"),
+    ("vps2", "10.0.2.2/24", "02:00:00:00:02:02"),
+    ("vps3", "10.0.3.2/24", "02:00:00:00:02:03"),
+    ("vps4", "10.0.4.2/24", "02:00:00:00:02:04"),
 )
+ORIGIN_CIDR = "10.0.5.2/24"
+ORIGIN_SERVICE_IP = "192.0.2.80"
+CLIENT_ROUTER_IP = str(ip_interface(PUBLIC_SITES[0][1]).network[1])
 BMV2_GRPC_ADDRESS = "127.0.0.1:9559"
 BMV2_CPU_PORT = "3"
 BMV2_PID_FILE = Path("/tmp/manta-simple-switch-grpc.pid")
@@ -183,91 +182,90 @@ def stop_bmv2(process=None):
     BMV2_PID_FILE.unlink(missing_ok=True)
 
 
+class Bmv2Ports(Switch):
+    """BMv2 owns these interfaces. Linux must not bridge the two transit links."""
+
+    def start(self, controllers):
+        for intf in self.intfList():
+            if intf.name != "lo":
+                intf.ifconfig("up")
+
+
 class Bmv2MantaTopo(Topo):
-    """Two-segment topology with an explicit BMv2 interface placeholder."""
-
     def build(self):
-        pubside = self.addSwitch("pubside", dpid="0000000000000002")
-        intside = self.addSwitch("intside", dpid="0000000000000003")
+        gw = self.addSwitch("bmv2gw", cls=Bmv2Ports, dpid="0000000000000001")
+        public = self.addHost("pubedge", ip="172.30.0.1/30", mac=PUBLIC_TRANSIT_MAC)
+        private = self.addHost("privedge", ip="172.31.0.1/30", mac=PRIVATE_TRANSIT_MAC)
+        self.addLink(public, gw, intfName1="pub-wan", intfName2=PUBLIC_GATEWAY_INTF,
+                     port2=PUBLIC_GATEWAY_PORT)
+        self.addLink(private, gw, intfName1="priv-wan", intfName2=INTERNAL_GATEWAY_INTF,
+                     port2=INTERNAL_GATEWAY_PORT)
+        for name, cidr in PUBLIC_SITES:
+            self.add_site(public, name, cidr)
+        for name, cidr, mac in VPS_HOSTS:
+            self.add_site(private, name, cidr, mac)
+        self.add_site(private, "server", ORIGIN_CIDR)
 
-        client = self.addHost("client", ip="10.0.0.1/24", mac=CLIENT_MAC)
-        scanner = self.addHost("scanner", ip="10.0.0.3/24", mac=SCANNER_MAC)
-        bmv2gw = self.addSwitch(
-            "bmv2gw",
-            cls=LinuxBridge,
-            dpid="0000000000000001",
-        )
-
-        # Public-side hosts share 10.0.0.0/24 with the future BMv2 port 1.
-        self.addLink(client, pubside, port2=1)
-        self.addLink(scanner, pubside, port2=2)
-        self.addLink(
-            bmv2gw,
-            pubside,
-            port1=PUBLIC_GATEWAY_PORT,
-            port2=3,
-            intfName1=PUBLIC_GATEWAY_INTF,
-        )
-
-        # The protected server is isolated on 10.0.1.0/24 with future BMv2 port 2.
-        self.addLink(
-            bmv2gw,
-            intside,
-            port1=INTERNAL_GATEWAY_PORT,
-            port2=1,
-            intfName1=INTERNAL_GATEWAY_INTF,
-        )
-        for port, (name, cidr, mac) in enumerate(VPS_HOSTS, start=2):
-            host = self.addHost(name, ip=cidr, mac=mac)
-            self.addLink(host, intside, port2=port)
+    def add_site(self, router, name, cidr, mac=None):
+        gateway = ip_interface(cidr).network[1]
+        host = self.addHost(name, ip=cidr, mac=mac, defaultRoute=f"via {gateway}")
+        self.addLink(host, router, intfName2=f"to-{name}",
+                     params2={"ip": f"{gateway}/{ip_interface(cidr).network.prefixlen}"})
 
 
 def build_network():
-    """Build, but do not start, the BMv2-oriented Mininet network."""
+    return Mininet(topo=Bmv2MantaTopo(), controller=None, build=True)
 
-    return Mininet(
-        topo=Bmv2MantaTopo(),
-        controller=None,
-        switch=LinuxBridge,
-        build=True,
-    )
+
+def _checked(node, args, *, stdin=None):
+    with node.popen(args, stdin=subprocess.PIPE if stdin is not None else None,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        _, err = proc.communicate(stdin.encode() if stdin is not None else None)
+        if proc.returncode:
+            raise RuntimeError(f"{node.name}: {args[0]} failed: {err.decode().strip()}")
+
+
+def _forwarding_rules(allowed):
+    # Each edge lives in its own namespace. Apply its policy before enabling routing.
+    return "\n".join(["*filter", ":INPUT DROP [0:0]", ":FORWARD DROP [0:0]",
+                      ":OUTPUT ACCEPT [0:0]",
+                      "-A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT",
+                      *allowed, "-A FORWARD -j REJECT", "COMMIT", ""])
 
 
 def configure_static_smoke_path(net):
-    """Install the prototype routes and static neighbour entries in hosts."""
+    public, private = net["pubedge"], net["privedge"]
+    _checked(public, ["ip", "neigh", "replace", PUBLIC_GATEWAY_IP, "lladdr",
+                      PUBLIC_GATEWAY_MAC, "nud", "permanent", "dev", "pub-wan"])
+    _checked(public, ["ip", "route", "replace", "10.0.0.0/24", "via", PUBLIC_GATEWAY_IP])
+    _checked(private, ["ip", "neigh", "replace", INTERNAL_GATEWAY_IP, "lladdr",
+                       INTERNAL_GATEWAY_MAC, "nud", "permanent", "dev", "priv-wan"])
+    _checked(private, ["ip", "route", "replace", "10.10.1.0/24", "via", INTERNAL_GATEWAY_IP])
 
-    client = net["client"]
-    client_intf = client.defaultIntf().name
-
-    commands = [
-        (
-            client,
-            f"ip route replace 10.0.1.0/24 via {PUBLIC_GATEWAY_IP} "
-            f"dev {client_intf}",
-        ),
-        (
-            client,
-            f"ip neigh replace {PUBLIC_GATEWAY_IP} lladdr {PUBLIC_GATEWAY_MAC} "
-            f"nud permanent dev {client_intf}",
-        ),
-        (
-            client,
-            f"ip neigh replace {PUBLIC_IDENTITY_IP} lladdr {PUBLIC_GATEWAY_MAC} "
-            f"nud permanent dev {client_intf}",
-        ),
-    ]
-    for name, _, _ in VPS_HOSTS:
-        host = net[name]
-        intf = host.defaultIntf().name
-        commands.extend([
-            (host, f"ip route replace 10.0.0.0/24 via {INTERNAL_GATEWAY_IP} dev {intf}"),
-            (host, f"ip neigh replace {INTERNAL_GATEWAY_IP} lladdr {INTERNAL_GATEWAY_MAC} "
-                   f"nud permanent dev {intf}"),
-        ])
-    for host, command in commands:
-        output = host.cmd(command)
-        if output.strip():
-            raise RuntimeError(f"failed to configure {host.name}: {output.strip()}")
+    client_ip = str(ip_interface(PUBLIC_SITES[0][1]).ip)
+    _checked(public, ["iptables-restore"], stdin=_forwarding_rules([
+        f"-A FORWARD -i to-client -o pub-wan -s {client_ip} -d 10.0.0.0/24 "
+        "-p tcp --dport 8080 -j ACCEPT",
+    ]))
+    origin = ip_interface(ORIGIN_CIDR).ip
+    allowed, nat = [], ["*nat", ":PREROUTING ACCEPT [0:0]", ":POSTROUTING ACCEPT [0:0]"]
+    for name, cidr, _ in VPS_HOSTS:
+        ip = ip_interface(cidr).ip
+        # BMv2 translates the active public identity before this edge receives the request.
+        allowed.append(f"-A FORWARD -i priv-wan -o to-{name} -s {client_ip} -d {ip} "
+                       "-p tcp --dport 80 -j ACCEPT")
+        nat.append(f"-A POSTROUTING -o to-{name} -s {client_ip} -d {ip} "
+                   "-p tcp --dport 80 -j MASQUERADE")
+        # Relays reach the origin only through its service address, on HTTP.
+        nat.append(f"-A PREROUTING -i to-{name} -s {ip} -d {ORIGIN_SERVICE_IP} "
+                   f"-p tcp --dport 80 -j DNAT --to-destination {origin}")
+        allowed.append(f"-A FORWARD -i to-{name} -o to-server -s {ip} -d {origin} "
+                       f"-p tcp --dport 80 -m conntrack --ctorigdst {ORIGIN_SERVICE_IP} -j ACCEPT")
+    nat.append(f"-A POSTROUTING -o to-server -d {origin} -p tcp --dport 80 -j MASQUERADE")
+    _checked(private, ["iptables-restore"],
+             stdin=_forwarding_rules(allowed) + "\n".join([*nat, "COMMIT", ""]))
+    for edge in (public, private):
+        _checked(edge, ["sysctl", "-qw", "net.ipv4.ip_forward=1"])
 
 
 def start_network(net):
