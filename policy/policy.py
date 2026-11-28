@@ -176,6 +176,7 @@ class PolicyManager:
     return "Interval changed"
 
   # Send direct command to Rotation Coordinator
+  # If update successful, update own interval as well
   async def request_rotation(self, decision: RotationRequest | None):
     """Hand an explicit rotation request to the coordinator.
 
@@ -187,7 +188,14 @@ class PolicyManager:
     if decision is None:
       return None
 
-    accepted = await self.rotation_coordinator.request_rotation(decision)
+    accepted = await self.rotation_coordinator.rotate(decision)
+
+    if accepted == True:
+      if decision.reason == "Poor":
+        self.interval += 1
+      elif decision.reason == "Good":
+        self.interval -= 1
+
     return await self.rotation_coordinator.wait(decision.request_id) if accepted.accepted else accepted
 
   # Check observation object from TelemetryCollector
