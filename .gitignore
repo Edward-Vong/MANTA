@@ -2,3 +2,4 @@ MANTA.ova
 __pycache__/
 *.pyc
 *.pyo
+/tests/
