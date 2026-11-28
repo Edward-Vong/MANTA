@@ -1,19 +1,22 @@
 """Check each VPS backend from the demo's P4Runtime environment."""
 
 import asyncio
+from email.parser import Parser
 import json
 import logging
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 from uuid import uuid4
 
 from gateway.bmv2 import AsyncBmv2CoordinatorAdapter, Bmv2P4RuntimeGateway
 
+from controller.handoff import HandoffControl, HandoffSession, acknowledge, read_update
 from controller.rotator import (
     IdentityPool, JsonStateStore, MappingGeneration, PublicIdentity,
-    RotationCoordinator, RotationRequest, RotationState,
+    RotationConfig, RotationCoordinator, RotationRequest, RotationState,
 )
 
 
@@ -32,29 +35,38 @@ FAILURE_REASONS = {
 
 
 class MininetClient:
-    """Prepare the demo client's neighbor entry and probe from its network namespace."""
+    """Prepare a route through the site's router and probe from the client namespace."""
 
-    def __init__(self, pid, interface, gateway_mac):
+    def __init__(self, pid, interface, gateway_ip, service_id, key_path):
         self.namespace = ["nsenter", "--target", str(pid), "--net", "--"]
         self.interface = interface
-        self.gateway_mac = gateway_mac
+        self.gateway_ip = gateway_ip
+        self.service_id = service_id
+        self.key_path = key_path
 
-    async def prepare_and_wait(self, plan):
-        ip = plan.next_identity.public_ip
-        await asyncio.to_thread(
-            subprocess.run, self.namespace + [
-                "ip", "neigh", "replace", ip, "lladdr", self.gateway_mac,
-                "nud", "permanent", "dev", self.interface,
-            ], check=True, timeout=3,
+    async def exchange(self, update):
+        process = await asyncio.create_subprocess_exec(
+            *self.namespace, sys.executable, "-m", "demos.rotation_scenario", "--client-handoff",
+            self.service_id, self.interface, self.gateway_ip, str(self.key_path),
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
         )
-        log.info("The gateway has checked the new route. The client is ready to use %s:%s.",
-                 ip, plan.next_identity.public_port)
-        return True
+        try:
+            reply, _ = await process.communicate(json.dumps(update).encode())
+        finally:
+            if process.returncode is None:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                await process.wait()
+        if process.returncode:
+            raise OSError("The Mininet client could not return a handoff acknowledgment")
+        return json.loads(reply)
 
-    def probe(self, identity, marker, *, retired=False):
+    def probe(self, identity, backend, origin_marker, *, retired=False):
         address = f"{identity.public_ip}:{identity.public_port}"
         url = f"http://{address}/probe.txt"
-        args = ["curl", "--disable", "--noproxy", "*", "--silent", "--show-error",
+        args = ["curl", "--disable", "--noproxy", "*", "--include", "--silent", "--show-error",
                 "--fail", "--max-time", "3"]
         if not retired:
             args.extend(["--retry", "2", "--retry-connrefused"])
@@ -69,26 +81,50 @@ class MininetClient:
                                    f"curl reported {result.stderr.strip()}")
             log.info("The old address %s timed out as expected.", address)
         else:
-            name = marker.split()[0]
+            name = backend["name"]
             if result.returncode:
                 raise RuntimeError(f"The client could not reach {name} at {address}. "
                                    f"curl reported {result.stderr.strip()}")
-            if result.stdout != marker:
-                raise RuntimeError(f"{address} answered, but its response did not match {name}.")
-            log.info("Confirmed. %s answered the client at %s.", name, address)
+            headers, _, body = result.stdout.partition("\n\n")
+            fields = Parser().parsestr(headers.partition("\n")[2])
+            if fields.get("X-Manta-VPS") != backend["marker"] or body != origin_marker:
+                raise RuntimeError(f"{address} did not return the origin's probe through {name}.")
+            log.info("Confirmed. The origin answered through %s at %s.", name, address)
 
 
-async def run(run_dir, client_pid, interface, gateway_mac, public_ip, *, debug=False):
+def client_handoff(service_id, interface, gateway_ip, key_path):
+    """Handle one private pipe exchange inside the client's network namespace."""
+    key = Path(key_path).read_bytes()
+    update = json.load(sys.stdin)
+    payload = read_update(update, key, service_id, "client")
+    identity = PublicIdentity(**payload["next_identity"])
+    command = ["ip", "route", "replace", f"{identity.public_ip}/32", "via", gateway_ip,
+               "dev", interface]
+    prepared = subprocess.run(command, timeout=1, check=False).returncode == 0
+    if prepared:
+        log.info("The gateway has checked the new route. The client is ready to use %s:%s.",
+                 identity.public_ip, identity.public_port)
+    json.dump(acknowledge(update, key, ready=prepared), sys.stdout)
+
+
+async def run(run_dir, client_pid, interface, gateway_ip, public_ip, *, debug=False):
     run_dir = Path(run_dir)
     backends = json.loads((run_dir / "backends.json").read_text(encoding="ascii"))
+    origin_marker = (run_dir / "origin" / "probe.txt").read_text(encoding="ascii")
     endpoints = [PublicIdentity(host["ip"], 80) for host in backends]
     initial = MappingGeneration("manta-http", 1, PublicIdentity(public_ip, 8080),
                                 endpoints[0])
-    adapter = AsyncBmv2CoordinatorAdapter(Bmv2P4RuntimeGateway(
-        backend_macs={host["ip"]: host["mac"] for host in backends}, trace_writes=debug))
-    client = MininetClient(client_pid, interface, gateway_mac)
+    adapter = AsyncBmv2CoordinatorAdapter(Bmv2P4RuntimeGateway(trace_writes=debug))
     store = JsonStateStore(run_dir / "journal.json", [initial])
-    coordinator = RotationCoordinator(IdentityPool(), adapter, client, store,
+    key = os.urandom(32)
+    with tempfile.NamedTemporaryFile(dir=run_dir, delete=False) as key_file:
+        key_file.write(key)
+    key_path = Path(key_file.name)
+    client = MininetClient(client_pid, interface, gateway_ip, initial.service_id, key_path)
+    config = RotationConfig(handoff_attempts=2, handoff_ack_timeout_ms=2000)
+    session = HandoffSession(initial.service_id, "client", key, client.exchange)
+    handoff = HandoffControl([session], config)
+    coordinator = RotationCoordinator(IdentityPool(), adapter, handoff, store, config,
                                       service_backends={initial.service_id: endpoints})
     try:
         serving = backends[0]["name"]
@@ -102,7 +138,7 @@ async def run(run_dir, client_pid, interface, gateway_mac, public_ip, *, debug=F
             raise RuntimeError(f"The gateway could not enable the first route to {serving}.")
         await coordinator.recover()
         current = initial
-        client.probe(current.identity, backends[0]["marker"])
+        client.probe(current.identity, backends[0], origin_marker)
         for number, expected in enumerate(backends[1:] + backends[:1], start=1):
             previous = current
             name = expected["name"]
@@ -116,13 +152,16 @@ async def run(run_dir, client_pid, interface, gateway_mac, public_ip, *, debug=F
             if current.internal_endpoint.public_ip != expected["ip"]:
                 raise RuntimeError(f"The rotator selected {current.internal_endpoint.public_ip}. "
                                    f"This switch should have selected {name} at {expected['ip']}.")
-            client.probe(current.identity, expected["marker"])
+            client.probe(current.identity, expected, origin_marker)
             serving = name
-            client.probe(previous.identity, None, retired=True)
-        log.info("PASS. All %d VPS hosts answered in order. The final request reached %s.",
+            client.probe(previous.identity, None, None, retired=True)
+        log.info("PASS. All %d VPS hosts forwarded to the origin in order. The final request used %s.",
                  len(backends), serving)
     finally:
-        await coordinator.close()
+        try:
+            await coordinator.close()
+        finally:
+            key_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
@@ -131,7 +170,10 @@ if __name__ == "__main__":
                         format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
     log.setLevel(logging.INFO)
     try:
-        asyncio.run(run(*sys.argv[1:], debug=debug))
-    except (RuntimeError, OSError, subprocess.SubprocessError) as error:
+        if sys.argv[1:2] == ["--client-handoff"]:
+            client_handoff(*sys.argv[2:])
+        else:
+            asyncio.run(run(*sys.argv[1:], debug=debug))
+    except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as error:
         log.error("FAIL. %s", error, exc_info=debug)
         sys.exit(1)

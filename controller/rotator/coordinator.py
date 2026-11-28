@@ -5,7 +5,7 @@ import logging
 from collections import Counter
 from time import time
 
-from .handoff import HandoffPlan
+from ..handoff import HandoffPlan
 from .journal import PersistenceError
 from .models import (
     MappingGeneration,

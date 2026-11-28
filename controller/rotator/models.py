@@ -86,6 +86,8 @@ class RotationConfig:
     cleanup_attempts: int = 3
     operation_timeout_ms: int = 5000
     require_client_ack: bool = True
+    handoff_attempts: int = 3
+    handoff_ack_timeout_ms: int = 1000
 
     def __post_init__(self):
         if self.overlap_ms < 0 or self.retire_retry_ms < 0:
@@ -93,3 +95,5 @@ class RotationConfig:
 
         if self.cleanup_attempts < 1 or self.operation_timeout_ms <= 0:
             raise ValueError("Attempts and operation timeout must be positive")
+        if self.handoff_attempts < 1 or self.handoff_ack_timeout_ms <= 0:
+            raise ValueError("Handoff attempts and acknowledgment timeout must be positive")
