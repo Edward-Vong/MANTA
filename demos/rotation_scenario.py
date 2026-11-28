@@ -14,6 +14,7 @@ from uuid import uuid4
 from gateway.bmv2 import AsyncBmv2CoordinatorAdapter, Bmv2P4RuntimeGateway
 
 from controller.handoff import HandoffControl, HandoffSession, acknowledge, read_update
+from controller.rotation_api import INTERVAL_PATH, RotationInterval, serve_rotation_api
 from controller.rotator import (
     IdentityPool, JsonStateStore, MappingGeneration, PublicIdentity,
     RotationConfig, RotationCoordinator, RotationRequest, RotationState,
@@ -107,6 +108,14 @@ def client_handoff(service_id, interface, gateway_ip, key_path):
     json.dump(acknowledge(update, key, ready=prepared), sys.stdout)
 
 
+async def wait_for_rotation_interval(interval):
+    """Wait for the current interval, checking for updates while waiting."""
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    while (remaining := interval.seconds - (loop.time() - started)) > 0:
+        await asyncio.sleep(min(remaining, 1))
+
+
 async def run(run_dir, client_pid, interface, gateway_ip, public_ip, *, debug=False):
     run_dir = Path(run_dir)
     backends = json.loads((run_dir / "backends.json").read_text(encoding="ascii"))
@@ -137,26 +146,31 @@ async def run(run_dir, client_pid, interface, gateway_ip, public_ip, *, debug=Fa
         if not await adapter.activate_mapping(initial, None):
             raise RuntimeError(f"The gateway could not enable the first route to {serving}.")
         await coordinator.recover()
-        current = initial
-        client.probe(current.identity, backends[0], origin_marker)
-        for number, expected in enumerate(backends[1:] + backends[:1], start=1):
-            previous = current
-            name = expected["name"]
-            log.info("Switch %d of %d. Moving traffic from %s to %s.",
-                     number, len(backends), serving, name)
-            result = await coordinator.rotate(RotationRequest(uuid4().hex, initial.service_id))
-            if result.state != RotationState.COMPLETE:
-                reason = FAILURE_REASONS.get(result.error, result.error or result.state.value)
-                raise RuntimeError(f"The switch from {serving} to {name} did not finish because {reason}.")
-            current = store.load().active[initial.service_id]
-            if current.internal_endpoint.public_ip != expected["ip"]:
-                raise RuntimeError(f"The rotator selected {current.internal_endpoint.public_ip}. "
-                                   f"This switch should have selected {name} at {expected['ip']}.")
-            client.probe(current.identity, expected, origin_marker)
-            serving = name
-            client.probe(previous.identity, None, None, retired=True)
-        log.info("PASS. All %d VPS hosts forwarded to the origin in order. The final request used %s.",
-                 len(backends), serving)
+        interval = RotationInterval()
+        with serve_rotation_api(interval.adjust) as server:
+            log.info("Rotation API listening at http://127.0.0.1:%d%s", server.server_port, INTERVAL_PATH)
+            current = initial
+            client.probe(current.identity, backends[0], origin_marker)
+            for number, expected in enumerate(backends[1:] + backends[:1], start=1):
+                previous = current
+                name = expected["name"]
+                log.info("Waiting to switch to %s (current interval: %d seconds).", name, interval.seconds)
+                await wait_for_rotation_interval(interval)
+                log.info("Switch %d of %d. Moving traffic from %s to %s.",
+                         number, len(backends), serving, name)
+                result = await coordinator.rotate(RotationRequest(uuid4().hex, initial.service_id))
+                if result.state != RotationState.COMPLETE:
+                    reason = FAILURE_REASONS.get(result.error, result.error or result.state.value)
+                    raise RuntimeError(f"The switch from {serving} to {name} did not finish because {reason}.")
+                current = store.load().active[initial.service_id]
+                if current.internal_endpoint.public_ip != expected["ip"]:
+                    raise RuntimeError(f"The rotator selected {current.internal_endpoint.public_ip}. "
+                                       f"This switch should have selected {name} at {expected['ip']}.")
+                client.probe(current.identity, expected, origin_marker)
+                serving = name
+                client.probe(previous.identity, None, None, retired=True)
+            log.info("PASS. All %d VPS hosts forwarded to the origin in order. The final request used %s.",
+                     len(backends), serving)
     finally:
         try:
             await coordinator.close()
